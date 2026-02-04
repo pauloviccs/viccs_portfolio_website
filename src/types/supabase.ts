@@ -11,46 +11,76 @@ export type Database = {
         Tables: {
             orders: {
                 Row: {
-                    budget_range: string | null
-                    client_id: string
-                    created_at: string | null
-                    deadline: string | null
-                    description: string
                     id: string
-                    status: Database["public"]["Enums"]["order_status"] | null
+                    client_id: string
                     title: string
-                    updated_at: string | null
+                    description: string | null
+                    priority: string
+                    whatsapp: string | null
+                    status: string
+                    created_at: string
+                    updated_at: string
                 }
                 Insert: {
-                    budget_range?: string | null
-                    client_id: string
-                    created_at?: string | null
-                    deadline?: string | null
-                    description: string
                     id?: string
-                    status?: Database["public"]["Enums"]["order_status"] | null
+                    client_id: string
                     title: string
-                    updated_at?: string | null
+                    description?: string | null
+                    priority?: string
+                    whatsapp?: string | null
+                    status?: string
+                    created_at?: string
+                    updated_at?: string
                 }
                 Update: {
-                    budget_range?: string | null
-                    client_id?: string
-                    created_at?: string | null
-                    deadline?: string | null
-                    description?: string
                     id?: string
-                    status?: Database["public"]["Enums"]["order_status"] | null
+                    client_id?: string
                     title?: string
-                    updated_at?: string | null
+                    description?: string | null
+                    priority?: string
+                    whatsapp?: string | null
+                    status?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: []
+            }
+            order_messages: {
+                Row: {
+                    id: string
+                    order_id: string
+                    user_id: string
+                    content: string
+                    is_admin: boolean
+                    attachments: string[] | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    order_id: string
+                    user_id: string
+                    content: string
+                    is_admin?: boolean
+                    attachments?: string[] | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    order_id?: string
+                    user_id?: string
+                    content?: string
+                    is_admin?: boolean
+                    attachments?: string[] | null
+                    created_at?: string
                 }
                 Relationships: [
                     {
-                        foreignKeyName: "orders_client_id_fkey"
-                        columns: ["client_id"]
+                        foreignKeyName: "order_messages_order_id_fkey"
+                        columns: ["order_id"]
                         isOneToOne: false
-                        referencedRelation: "profiles"
+                        referencedRelation: "orders"
                         referencedColumns: ["id"]
-                    },
+                    }
                 ]
             }
             profiles: {
