@@ -74,19 +74,44 @@ export const Navigation = () => {
               </motion.a>
             ))}
 
-            <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate(isAuthenticated ? '/dashboard' : '/auth')}
-              className="px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-accent hover:bg-accent hover:text-accent-foreground transition-all flex items-center gap-2"
-            >
-              <User size={16} />
-              <span className="text-sm font-medium">
-                {isAuthenticated ? 'Dashboard' : 'Entrar'}
-              </span>
-            </motion.button>
+            {isAuthenticated ? (
+              <>
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate('/dashboard')}
+                  className="px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-accent hover:bg-accent hover:text-accent-foreground transition-all flex items-center gap-2"
+                >
+                  <User size={16} />
+                  <span className="text-sm font-medium">Dashboard</span>
+                </motion.button>
+                <div className="h-6 w-px bg-white/10 mx-2" />
+                <button
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    setIsAuthenticated(false);
+                    navigate('/');
+                  }}
+                  className="text-sm font-medium text-muted-foreground hover:text-red-400 transition-colors"
+                >
+                  Sair
+                </button>
+              </>
+            ) : (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/auth')}
+                className="px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-accent hover:bg-accent hover:text-accent-foreground transition-all flex items-center gap-2"
+              >
+                <User size={16} />
+                <span className="text-sm font-medium">Entrar</span>
+              </motion.button>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -133,8 +158,24 @@ export const Navigation = () => {
                 }}
                 className="text-2xl font-medium text-accent text-left"
               >
-                {isAuthenticated ? 'Ir para Dashboard' : 'Fazer Login'}
+                {isAuthenticated ? 'Acessar Dashboard' : 'Fazer Login'}
               </motion.button>
+
+              {isAuthenticated && (
+                <motion.button
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.6 }}
+                  onClick={async () => {
+                    setIsMobileMenuOpen(false);
+                    await supabase.auth.signOut();
+                    navigate('/');
+                  }}
+                  className="text-lg font-medium text-red-400 text-left"
+                >
+                  Sair da Conta
+                </motion.button>
+              )}
             </div>
           </motion.div>
         )}
