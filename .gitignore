@@ -26,5 +26,5 @@ dist-ssr
 .agent/
 hero/
 medias/
-
+rules/
 sidecar/
