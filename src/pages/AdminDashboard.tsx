@@ -598,12 +598,49 @@ function OrdersSection({ orders, onUpdate }: { orders: (Order & { profiles: Prof
     );
 }
 
-// ========== PROJECTS SECTION (SIMPLIFIED) ==========
+// ========== PROJECTS SECTION (PORTFOLIO) ==========
 function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate: () => void }) {
+    const [isCreating, setIsCreating] = useState(false);
+
+    // Form state
     const [title, setTitle] = useState("");
-    const [desc, setDesc] = useState("");
+    const [description, setDescription] = useState("");
     const [category, setCategory] = useState("Design");
+    const [clientName, setClientName] = useState("");
+    const [tags, setTags] = useState("");
+    const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+    const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
     const [uploading, setUploading] = useState(false);
+
+    const resetForm = () => {
+        setTitle("");
+        setDescription("");
+        setCategory("Design");
+        setClientName("");
+        setTags("");
+        setMediaFiles([]);
+        setMediaPreviews([]);
+        setIsCreating(false);
+    };
+
+    const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        setMediaFiles([...mediaFiles, ...files]);
+
+        // Generate previews
+        const newPreviews = files.map(file => URL.createObjectURL(file));
+        setMediaPreviews([...mediaPreviews, ...newPreviews]);
+    };
+
+    const removeMedia = (index: number) => {
+        const newFiles = [...mediaFiles];
+        const newPreviews = [...mediaPreviews];
+        URL.revokeObjectURL(newPreviews[index]);
+        newFiles.splice(index, 1);
+        newPreviews.splice(index, 1);
+        setMediaFiles(newFiles);
+        setMediaPreviews(newPreviews);
+    };
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -611,78 +648,304 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
 
         setUploading(true);
 
+        // Upload media files
+        const uploadedUrls: string[] = [];
+        for (const file of mediaFiles) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from("project-media")
+                .upload(fileName, file);
+
+            if (!uploadError) {
+                const { data } = supabase.storage.from("project-media").getPublicUrl(fileName);
+                uploadedUrls.push(data.publicUrl);
+            }
+        }
+
+        // Insert project
         await supabase.from("projects").insert({
             title,
-            description: desc,
+            description,
             category,
-            image_urls: [],
+            client_name: clientName || null,
+            tags: tags ? tags.split(",").map(t => t.trim()) : [],
+            image_urls: uploadedUrls,
+            completion_date: new Date().toISOString().split('T')[0],
         });
 
-        setTitle("");
-        setDesc("");
+        resetForm();
         setUploading(false);
         onUpdate();
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDelete = async (id: string, imageUrls: string[]) => {
+        // Delete media files from storage
+        for (const url of imageUrls) {
+            const fileName = url.split('/').pop();
+            if (fileName) {
+                await supabase.storage.from("project-media").remove([fileName]);
+            }
+        }
+
         await supabase.from("projects").delete().eq("id", id);
         onUpdate();
     };
 
     return (
         <div className="space-y-8">
-            {/* Create Form */}
-            <form onSubmit={handleCreate} className="glass rounded-2xl p-6 space-y-4">
-                <h3 className="text-lg font-bold">Novo Projeto</h3>
-                <p className="text-sm text-muted-foreground">Adicione projetos para contabilizar no contador da landing page.</p>
-                <input
-                    type="text"
-                    placeholder="Título do projeto"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2"
-                    required
-                />
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2">
-                    <option value="Design">Design</option>
-                    <option value="Motion">Motion</option>
-                    <option value="3D">3D</option>
-                </select>
-                <textarea
-                    placeholder="Descrição (opcional)"
-                    value={desc}
-                    onChange={(e) => setDesc(e.target.value)}
-                    className="w-full h-24 bg-white/5 border border-white/10 rounded-xl px-4 py-2 resize-none"
-                />
-                <button disabled={uploading} className="px-6 py-3 bg-accent text-primary rounded-full font-bold disabled:opacity-50">
-                    {uploading ? "Criando..." : "Adicionar Projeto"}
-                </button>
-            </form>
-
-            {/* Total Counter */}
-            <div className="glass rounded-2xl p-6">
-                <div className="text-center">
-                    <div className="text-5xl font-bold text-gradient">{projects.length}</div>
-                    <div className="text-muted-foreground mt-2">Projetos Cadastrados</div>
+            {/* Header with Counter */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h3 className="text-2xl font-bold">Portfólio de Trabalhos</h3>
+                    <p className="text-muted-foreground">Projetos exibidos na landing page e contabilizados na seção "Sobre"</p>
+                </div>
+                <div className="flex items-center gap-4">
+                    <div className="glass rounded-2xl px-6 py-3 text-center">
+                        <div className="text-3xl font-bold text-gradient">{projects.length}</div>
+                        <div className="text-xs text-muted-foreground">Projetos</div>
+                    </div>
+                    {!isCreating && (
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            className="px-6 py-3 bg-accent text-primary rounded-full font-bold flex items-center gap-2 hover:bg-accent/80 transition-colors"
+                        >
+                            <Plus size={18} />
+                            Novo Projeto
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Projects List */}
-            <div className="space-y-3">
-                {projects.map((project) => (
-                    <div key={project.id} className="glass rounded-xl p-4 flex items-center justify-between">
-                        <div>
-                            <h4 className="font-bold">{project.title}</h4>
-                            <div className="flex gap-2 text-sm text-muted-foreground">
-                                <span className="px-2 py-0.5 bg-white/5 rounded-full">{project.category}</span>
-                                {project.description && <span>{project.description.slice(0, 50)}...</span>}
-                            </div>
-                        </div>
-                        <button onClick={() => handleDelete(project.id)} className="text-red-400 hover:underline text-sm">
-                            Remover
+            {/* Create/Edit Form */}
+            {isCreating && (
+                <form onSubmit={handleCreate} className="glass rounded-2xl p-8 space-y-6 border border-white/10">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-xl font-bold">Cadastrar Projeto do Portfólio</h4>
+                        <button type="button" onClick={resetForm} className="text-muted-foreground hover:text-foreground">
+                            <X size={20} />
                         </button>
                     </div>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                        {/* Title */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Título do Projeto *</label>
+                            <input
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder="Ex: Rebranding Konica Minolta"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:border-accent/50 focus:ring-1 focus:ring-accent/20 outline-none transition-colors"
+                                required
+                            />
+                        </div>
+
+                        {/* Client Name */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Nome do Cliente</label>
+                            <input
+                                type="text"
+                                value={clientName}
+                                onChange={(e) => setClientName(e.target.value)}
+                                placeholder="Ex: Konica Minolta Brasil"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:border-accent/50 focus:ring-1 focus:ring-accent/20 outline-none transition-colors"
+                            />
+                        </div>
+
+                        {/* Category */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Categoria</label>
+                            <select
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:border-accent/50 focus:ring-1 focus:ring-accent/20 outline-none transition-colors"
+                            >
+                                <option value="Design">Design Gráfico</option>
+                                <option value="Motion">Motion Graphics</option>
+                                <option value="3D">Arte 3D</option>
+                                <option value="Branding">Branding</option>
+                                <option value="UI/UX">UI/UX Design</option>
+                            </select>
+                        </div>
+
+                        {/* Tags */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Tags (separadas por vírgula)</label>
+                            <input
+                                type="text"
+                                value={tags}
+                                onChange={(e) => setTags(e.target.value)}
+                                placeholder="Ex: logo, identidade, minimalista"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:border-accent/50 focus:ring-1 focus:ring-accent/20 outline-none transition-colors"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Description / Concept */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2">Conceito / Descrição do Projeto</label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Descreva o conceito por trás do projeto, os desafios, a solução criativa e os resultados..."
+                            className="w-full h-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 resize-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 outline-none transition-colors"
+                        />
+                    </div>
+
+                    {/* Media Upload */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2">Mídias do Projeto (Imagens/Vídeos)</label>
+                        <div className="border-2 border-dashed border-white/10 rounded-2xl p-6 text-center hover:border-accent/30 transition-colors">
+                            <input
+                                type="file"
+                                accept="image/*,video/*"
+                                multiple
+                                onChange={handleMediaSelect}
+                                className="hidden"
+                                id="media-upload"
+                            />
+                            <label htmlFor="media-upload" className="cursor-pointer">
+                                <Upload size={32} className="mx-auto mb-2 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground">Clique para adicionar ou arraste mídias aqui</p>
+                                <p className="text-xs text-muted-foreground mt-1">PNG, JPG, GIF, MP4, WebM (máx. 50MB cada)</p>
+                            </label>
+                        </div>
+
+                        {/* Media Previews */}
+                        {mediaPreviews.length > 0 && (
+                            <div className="grid grid-cols-4 gap-4 mt-4">
+                                {mediaPreviews.map((preview, index) => (
+                                    <div key={index} className="relative group aspect-square rounded-xl overflow-hidden bg-white/5">
+                                        <img src={preview} alt="" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeMedia(index)}
+                                            className="absolute top-2 right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-4 pt-4">
+                        <button
+                            type="submit"
+                            disabled={uploading || !title}
+                            className="px-8 py-3 bg-accent text-primary rounded-full font-bold disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {uploading ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
+                                    Salvando...
+                                </>
+                            ) : (
+                                <>
+                                    <Save size={18} />
+                                    Salvar Projeto
+                                </>
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={resetForm}
+                            className="px-6 py-3 bg-white/5 border border-white/10 rounded-full font-medium hover:bg-white/10 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            )}
+
+            {/* Projects Grid */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {projects.map((project) => (
+                    <div key={project.id} className="glass rounded-2xl overflow-hidden group hover:border-accent/30 border border-transparent transition-all">
+                        {/* Project Thumbnail */}
+                        <div className="aspect-square bg-gradient-to-br from-white/5 to-white/0 relative">
+                            {project.image_urls?.[0] ? (
+                                <img
+                                    src={project.image_urls[0]}
+                                    alt={project.title}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                    <FolderOpen size={48} />
+                                </div>
+                            )}
+
+                            {/* Media count badge */}
+                            {(project.image_urls?.length || 0) > 1 && (
+                                <div className="absolute top-3 right-3 px-2 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs">
+                                    +{(project.image_urls?.length || 0) - 1} mídias
+                                </div>
+                            )}
+
+                            {/* Hover overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => handleDelete(project.id, project.image_urls || [])}
+                                        className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs flex items-center gap-1 hover:bg-red-500/30 transition-colors"
+                                    >
+                                        <Trash2 size={12} />
+                                        Remover
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Project Info */}
+                        <div className="p-4 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-accent/10 text-accent rounded-full text-xs font-medium">
+                                    {project.category}
+                                </span>
+                                {project.client_name && (
+                                    <span className="text-xs text-muted-foreground">
+                                        • {project.client_name}
+                                    </span>
+                                )}
+                            </div>
+                            <h4 className="font-bold text-lg">{project.title}</h4>
+                            {project.description && (
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                    {project.description}
+                                </p>
+                            )}
+                            {project.tags && project.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-2">
+                                    {project.tags.slice(0, 3).map((tag, i) => (
+                                        <span key={i} className="px-2 py-0.5 bg-white/5 rounded-full text-xs text-muted-foreground">
+                                            #{tag}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 ))}
+
+                {projects.length === 0 && !isCreating && (
+                    <div className="col-span-full text-center py-16">
+                        <FolderOpen size={48} className="mx-auto mb-4 text-muted-foreground" />
+                        <h4 className="text-lg font-medium mb-2">Nenhum projeto cadastrado</h4>
+                        <p className="text-muted-foreground mb-4">Adicione projetos do seu portfólio para exibir na landing page.</p>
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            className="px-6 py-3 bg-accent text-primary rounded-full font-bold inline-flex items-center gap-2"
+                        >
+                            <Plus size={18} />
+                            Criar Primeiro Projeto
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

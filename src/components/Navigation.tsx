@@ -16,6 +16,7 @@ export const Navigation = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<'admin' | 'client' | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,13 +25,41 @@ export const Navigation = () => {
     };
     window.addEventListener('scroll', handleScroll);
 
-    // Check auth
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Check auth and get user role
+    const checkAuthAndRole = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setIsAuthenticated(!!session);
-    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        // Get user role from profiles table
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        setUserRole(profile?.role as 'admin' | 'client' || 'client');
+      } else {
+        setUserRole(null);
+      }
+    };
+
+    checkAuthAndRole();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setIsAuthenticated(!!session);
+
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        setUserRole(profile?.role as 'admin' | 'client' || 'client');
+      } else {
+        setUserRole(null);
+      }
     });
 
     return () => {
@@ -38,6 +67,15 @@ export const Navigation = () => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Navigate to appropriate dashboard based on role
+  const navigateToDashboard = () => {
+    if (userRole === 'admin') {
+      navigate('/admin');
+    } else {
+      navigate('/dashboard');
+    }
+  };
 
   return (
     <>
@@ -81,17 +119,20 @@ export const Navigation = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => navigate('/dashboard')}
+                  onClick={navigateToDashboard}
                   className="px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-accent hover:bg-accent hover:text-accent-foreground transition-all flex items-center gap-2"
                 >
                   <User size={16} />
-                  <span className="text-sm font-medium">Dashboard</span>
+                  <span className="text-sm font-medium">
+                    {userRole === 'admin' ? 'Admin' : 'Dashboard'}
+                  </span>
                 </motion.button>
                 <div className="h-6 w-px bg-white/10 mx-2" />
                 <button
                   onClick={async () => {
                     await supabase.auth.signOut();
                     setIsAuthenticated(false);
+                    setUserRole(null);
                     navigate('/');
                   }}
                   className="text-sm font-medium text-muted-foreground hover:text-red-400 transition-colors"
@@ -154,11 +195,17 @@ export const Navigation = () => {
                 transition={{ delay: 0.5 }}
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  navigate(isAuthenticated ? '/dashboard' : '/auth');
+                  if (isAuthenticated) {
+                    navigateToDashboard();
+                  } else {
+                    navigate('/auth');
+                  }
                 }}
                 className="text-2xl font-medium text-accent text-left"
               >
-                {isAuthenticated ? 'Acessar Dashboard' : 'Fazer Login'}
+                {isAuthenticated
+                  ? (userRole === 'admin' ? 'Painel Admin' : 'Dashboard')
+                  : 'Fazer Login'}
               </motion.button>
 
               {isAuthenticated && (
@@ -169,6 +216,7 @@ export const Navigation = () => {
                   onClick={async () => {
                     setIsMobileMenuOpen(false);
                     await supabase.auth.signOut();
+                    setUserRole(null);
                     navigate('/');
                   }}
                   className="text-lg font-medium text-red-400 text-left"
