@@ -194,6 +194,9 @@ export type Database = {
                     profile_image_url: string | null
                     updated_at: string | null
                     years_experience: number | null
+                    instagram_url: string | null
+                    linkedin_url: string | null
+                    github_url: string | null
                 }
                 Insert: {
                     bio_text?: string | null
@@ -201,6 +204,9 @@ export type Database = {
                     profile_image_url?: string | null
                     updated_at?: string | null
                     years_experience?: number | null
+                    instagram_url?: string | null
+                    linkedin_url?: string | null
+                    github_url?: string | null
                 }
                 Update: {
                     bio_text?: string | null
@@ -208,6 +214,9 @@ export type Database = {
                     profile_image_url?: string | null
                     updated_at?: string | null
                     years_experience?: number | null
+                    instagram_url?: string | null
+                    linkedin_url?: string | null
+                    github_url?: string | null
                 }
                 Relationships: []
             }

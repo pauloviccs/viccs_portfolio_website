@@ -1,16 +1,48 @@
 import { motion, useInView } from 'framer-motion';
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Mail, Phone, MapPin, Send, Linkedin, Instagram, Github } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+
+interface SocialLink {
+  icon: typeof Instagram;
+  label: string;
+  href: string;
+}
 
 export const ContactSection = () => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
-
-  const socialLinks = [
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([
     { icon: Instagram, label: 'Instagram', href: '#' },
     { icon: Linkedin, label: 'LinkedIn', href: '#' },
     { icon: Github, label: 'GitHub', href: '#' },
-  ];
+  ]);
+
+  useEffect(() => {
+    const fetchSocialLinks = async () => {
+      const { data } = await supabase
+        .from('site_settings')
+        .select('instagram_url, linkedin_url, github_url')
+        .single();
+
+      if (data) {
+        const links: SocialLink[] = [];
+        if (data.instagram_url) {
+          links.push({ icon: Instagram, label: 'Instagram', href: data.instagram_url });
+        }
+        if (data.linkedin_url) {
+          links.push({ icon: Linkedin, label: 'LinkedIn', href: data.linkedin_url });
+        }
+        if (data.github_url) {
+          links.push({ icon: Github, label: 'GitHub', href: data.github_url });
+        }
+        if (links.length > 0) {
+          setSocialLinks(links);
+        }
+      }
+    };
+    fetchSocialLinks();
+  }, []);
 
   return (
     <section id="contato" className="py-20 relative overflow-hidden">

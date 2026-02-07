@@ -168,6 +168,10 @@ function ProfileSection({ settings, onUpdate }: { settings: SiteSettings | null;
     const [bio, setBio] = useState(settings?.bio_text || "");
     const [years, setYears] = useState(settings?.years_experience || 15);
     const [imageUrl, setImageUrl] = useState(settings?.profile_image_url || "");
+    // Social media
+    const [instagramUrl, setInstagramUrl] = useState(settings?.instagram_url || "");
+    const [linkedinUrl, setLinkedinUrl] = useState(settings?.linkedin_url || "");
+    const [githubUrl, setGithubUrl] = useState(settings?.github_url || "");
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -208,6 +212,9 @@ function ProfileSection({ settings, onUpdate }: { settings: SiteSettings | null;
             bio_text: bio,
             years_experience: years,
             profile_image_url: imageUrl,
+            instagram_url: instagramUrl || null,
+            linkedin_url: linkedinUrl || null,
+            github_url: githubUrl || null,
             updated_at: new Date().toISOString(),
         }).eq("id", settings.id);
         setSaving(false);
@@ -256,6 +263,44 @@ function ProfileSection({ settings, onUpdate }: { settings: SiteSettings | null;
                     onChange={(e) => setYears(parseInt(e.target.value) || 0)}
                     className="w-24 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-center focus:border-accent focus:outline-none"
                 />
+            </div>
+
+            {/* Social Media Links */}
+            <div className="glass rounded-2xl p-6">
+                <h3 className="text-lg font-bold mb-4">Redes Sociais</h3>
+                <p className="text-sm text-muted-foreground mb-4">Links exibidos na seção de contato</p>
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium mb-2">Instagram</label>
+                        <input
+                            type="url"
+                            value={instagramUrl}
+                            onChange={(e) => setInstagramUrl(e.target.value)}
+                            placeholder="https://instagram.com/seu_usuario"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 focus:border-accent focus:outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-2">LinkedIn</label>
+                        <input
+                            type="url"
+                            value={linkedinUrl}
+                            onChange={(e) => setLinkedinUrl(e.target.value)}
+                            placeholder="https://linkedin.com/in/seu_usuario"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 focus:border-accent focus:outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-2">GitHub</label>
+                        <input
+                            type="url"
+                            value={githubUrl}
+                            onChange={(e) => setGithubUrl(e.target.value)}
+                            placeholder="https://github.com/seu_usuario"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 focus:border-accent focus:outline-none"
+                        />
+                    </div>
+                </div>
             </div>
 
             <button
