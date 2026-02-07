@@ -8,51 +8,57 @@ interface ProtectedRouteProps {
     adminOnly?: boolean;
 }
 
+type AuthState = 'loading' | 'authorized' | 'not-authenticated' | 'not-admin';
+
 export function ProtectedRoute({ children, adminOnly = false }: ProtectedRouteProps) {
-    const [loading, setLoading] = useState(true);
-    const [authorized, setAuthorized] = useState(false);
+    const [authState, setAuthState] = useState<AuthState>('loading');
 
     useEffect(() => {
         let isMounted = true;
+        let checkInProgress = false;
 
         const checkAuth = async () => {
+            // Prevent concurrent checks
+            if (checkInProgress) return;
+            checkInProgress = true;
+
             try {
                 const { data: { session } } = await supabase.auth.getSession();
 
                 if (!isMounted) return;
 
                 if (!session) {
-                    setAuthorized(false);
-                    setLoading(false);
+                    setAuthState('not-authenticated');
                     return;
                 }
 
                 if (adminOnly) {
                     // Check profile role
-                    const { data: profile } = await supabase
+                    const { data: profile, error } = await supabase
                         .from("profiles")
                         .select("role")
                         .eq("id", session.user.id)
                         .single();
 
+                    if (error) {
+                        console.error("Profile fetch error:", error);
+                        // If profile fetch fails, assume not admin
+                        if (isMounted) setAuthState('not-admin');
+                        return;
+                    }
+
                     if (isMounted) {
-                        setAuthorized(profile?.role === "admin");
+                        setAuthState(profile?.role === "admin" ? 'authorized' : 'not-admin');
                     }
                 } else {
-                    if (isMounted) {
-                        setAuthorized(true);
-                    }
-                }
-
-                if (isMounted) {
-                    setLoading(false);
+                    // Any authenticated user is allowed
+                    if (isMounted) setAuthState('authorized');
                 }
             } catch (error) {
                 console.error("Auth check error:", error);
-                if (isMounted) {
-                    setAuthorized(false);
-                    setLoading(false);
-                }
+                if (isMounted) setAuthState('not-authenticated');
+            } finally {
+                checkInProgress = false;
             }
         };
 
@@ -60,17 +66,15 @@ export function ProtectedRoute({ children, adminOnly = false }: ProtectedRoutePr
         checkAuth();
 
         // Listen for auth state changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (!isMounted) return;
 
-            if (!session) {
-                setAuthorized(false);
-                setLoading(false);
-                return;
+            // Only re-check on meaningful events
+            if (event === 'SIGNED_OUT') {
+                setAuthState('not-authenticated');
+            } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                checkAuth();
             }
-
-            // Re-check authorization when auth state changes
-            checkAuth();
         });
 
         return () => {
@@ -79,7 +83,8 @@ export function ProtectedRoute({ children, adminOnly = false }: ProtectedRoutePr
         };
     }, [adminOnly]);
 
-    if (loading) {
+    // Loading state
+    if (authState === 'loading') {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
                 <div className="flex flex-col items-center gap-4">
@@ -90,9 +95,16 @@ export function ProtectedRoute({ children, adminOnly = false }: ProtectedRoutePr
         );
     }
 
-    if (!authorized) {
+    // Not authenticated - go to login
+    if (authState === 'not-authenticated') {
         return <Navigate to="/auth" replace />;
     }
 
+    // User is authenticated but not admin - redirect to client dashboard
+    if (authState === 'not-admin') {
+        return <Navigate to="/dashboard" replace />;
+    }
+
+    // Authorized
     return <>{children}</>;
 }
