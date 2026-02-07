@@ -5,8 +5,25 @@ import { AdminHeader } from "../components/dashboard/AdminHeader";
 import type { SiteSettings, Skill, Language, Tool, Order, Project, Profile } from "../types/supabase";
 import {
     Plus, Trash2, Edit2, Save, X, Upload,
-    Briefcase, Users, FolderOpen, Clock
+    Briefcase, Users, FolderOpen, Clock, GripVertical
 } from "lucide-react";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ========== SECTION TITLES ==========
 const sectionTitles: Record<Section, { title: string; subtitle: string }> = {
@@ -643,11 +660,58 @@ function OrdersSection({ orders, onUpdate }: { orders: (Order & { profiles: Prof
     );
 }
 
+// ========== SORTABLE MEDIA ITEM ==========
+function SortableMediaItem({ id, url, onRemove }: { id: string; url: string; onRemove: () => void }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className="relative group aspect-square rounded-xl overflow-hidden bg-white/5 border border-white/10"
+        >
+            <img src={url} alt="" className="w-full h-full object-cover" />
+
+            {/* Drag handle */}
+            <div
+                {...attributes}
+                {...listeners}
+                className="absolute top-2 left-2 w-7 h-7 bg-black/60 backdrop-blur-sm rounded-lg flex items-center justify-center cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+                <GripVertical size={14} />
+            </div>
+
+            {/* Delete button */}
+            <button
+                type="button"
+                onClick={onRemove}
+                className="absolute top-2 right-2 w-7 h-7 bg-red-500/80 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+            >
+                <X size={14} />
+            </button>
+        </div>
+    );
+}
+
 // ========== PROJECTS SECTION (PORTFOLIO) ==========
 function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate: () => void }) {
     const [isCreating, setIsCreating] = useState(false);
+    const [editingProject, setEditingProject] = useState<Project | null>(null);
 
-    // Form state
+    // Form state (shared for create/edit)
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [category, setCategory] = useState("Design");
@@ -657,6 +721,16 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
     const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
     const [uploading, setUploading] = useState(false);
 
+    // Edit-specific state
+    const [existingMedia, setExistingMedia] = useState<string[]>([]);
+    const [mediaToDelete, setMediaToDelete] = useState<string[]>([]);
+
+    // DnD sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
     const resetForm = () => {
         setTitle("");
         setDescription("");
@@ -665,19 +739,33 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
         setTags("");
         setMediaFiles([]);
         setMediaPreviews([]);
+        setExistingMedia([]);
+        setMediaToDelete([]);
         setIsCreating(false);
+        setEditingProject(null);
+    };
+
+    const openEditModal = (project: Project) => {
+        setEditingProject(project);
+        setTitle(project.title);
+        setDescription(project.description || "");
+        setCategory(project.category || "Design");
+        setClientName(project.client_name || "");
+        setTags(project.tags?.join(", ") || "");
+        setExistingMedia(project.image_urls || []);
+        setMediaFiles([]);
+        setMediaPreviews([]);
+        setMediaToDelete([]);
     };
 
     const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         setMediaFiles([...mediaFiles, ...files]);
-
-        // Generate previews
         const newPreviews = files.map(file => URL.createObjectURL(file));
         setMediaPreviews([...mediaPreviews, ...newPreviews]);
     };
 
-    const removeMedia = (index: number) => {
+    const removeNewMedia = (index: number) => {
         const newFiles = [...mediaFiles];
         const newPreviews = [...mediaPreviews];
         URL.revokeObjectURL(newPreviews[index]);
@@ -687,35 +775,63 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
         setMediaPreviews(newPreviews);
     };
 
-    const handleCreate = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!title) return;
+    const removeExistingMedia = (index: number) => {
+        const urlToRemove = existingMedia[index];
+        setMediaToDelete([...mediaToDelete, urlToRemove]);
+        const newExisting = [...existingMedia];
+        newExisting.splice(index, 1);
+        setExistingMedia(newExisting);
+    };
 
-        setUploading(true);
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            setExistingMedia((items) => {
+                const oldIndex = items.indexOf(active.id as string);
+                const newIndex = items.indexOf(over.id as string);
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        }
+    };
 
-        // Upload media files
+    const uploadMediaFiles = async (files: File[]): Promise<string[]> => {
         const uploadedUrls: string[] = [];
-        for (const file of mediaFiles) {
+        for (const file of files) {
             const fileExt = file.name.split('.').pop();
             const fileName = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-
             const { error: uploadError } = await supabase.storage
                 .from("project-media")
                 .upload(fileName, file);
-
             if (!uploadError) {
                 const { data } = supabase.storage.from("project-media").getPublicUrl(fileName);
                 uploadedUrls.push(data.publicUrl);
             }
         }
+        return uploadedUrls;
+    };
 
-        // Insert project
+    const deleteMediaFromStorage = async (urls: string[]) => {
+        for (const url of urls) {
+            const fileName = url.split('/').pop();
+            if (fileName) {
+                await supabase.storage.from("project-media").remove([fileName]);
+            }
+        }
+    };
+
+    const handleCreate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!title) return;
+        setUploading(true);
+
+        const uploadedUrls = await uploadMediaFiles(mediaFiles);
+
         await supabase.from("projects").insert({
             title,
             description,
             category,
             client_name: clientName || null,
-            tags: tags ? tags.split(",").map(t => t.trim()) : [],
+            tags: tags ? tags.split(",").map(t => t.trim()).filter(Boolean) : [],
             image_urls: uploadedUrls,
             completion_date: new Date().toISOString().split('T')[0],
         });
@@ -725,18 +841,45 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
         onUpdate();
     };
 
-    const handleDelete = async (id: string, imageUrls: string[]) => {
-        // Delete media files from storage
-        for (const url of imageUrls) {
-            const fileName = url.split('/').pop();
-            if (fileName) {
-                await supabase.storage.from("project-media").remove([fileName]);
-            }
+    const handleSaveEdit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingProject || !title) return;
+        setUploading(true);
+
+        // Delete removed media from storage
+        if (mediaToDelete.length > 0) {
+            await deleteMediaFromStorage(mediaToDelete);
         }
 
+        // Upload new media
+        const newUploadedUrls = await uploadMediaFiles(mediaFiles);
+
+        // Combine existing (reordered) + new
+        const finalUrls = [...existingMedia, ...newUploadedUrls];
+
+        await supabase.from("projects").update({
+            title,
+            description,
+            category,
+            client_name: clientName || null,
+            tags: tags ? tags.split(",").map(t => t.trim()).filter(Boolean) : [],
+            image_urls: finalUrls,
+        }).eq("id", editingProject.id);
+
+        resetForm();
+        setUploading(false);
+        onUpdate();
+    };
+
+    const handleDelete = async (id: string, imageUrls: string[]) => {
+        if (!confirm("Tem certeza que deseja excluir este projeto?")) return;
+        await deleteMediaFromStorage(imageUrls);
         await supabase.from("projects").delete().eq("id", id);
         onUpdate();
     };
+
+    const isEditing = !!editingProject;
+    const showForm = isCreating || isEditing;
 
     return (
         <div className="space-y-8">
@@ -751,7 +894,7 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
                         <div className="text-3xl font-bold text-gradient">{projects.length}</div>
                         <div className="text-xs text-muted-foreground">Projetos</div>
                     </div>
-                    {!isCreating && (
+                    {!showForm && (
                         <button
                             onClick={() => setIsCreating(true)}
                             className="px-6 py-3 bg-accent text-primary rounded-full font-bold flex items-center gap-2 hover:bg-accent/80 transition-colors"
@@ -764,10 +907,12 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
             </div>
 
             {/* Create/Edit Form */}
-            {isCreating && (
-                <form onSubmit={handleCreate} className="glass rounded-2xl p-8 space-y-6 border border-white/10">
+            {showForm && (
+                <form onSubmit={isEditing ? handleSaveEdit : handleCreate} className="glass rounded-2xl p-8 space-y-6 border border-white/10">
                     <div className="flex items-center justify-between">
-                        <h4 className="text-xl font-bold">Cadastrar Projeto do Portfólio</h4>
+                        <h4 className="text-xl font-bold">
+                            {isEditing ? "Editar Projeto" : "Cadastrar Projeto do Portfólio"}
+                        </h4>
                         <button type="button" onClick={resetForm} className="text-muted-foreground hover:text-foreground">
                             <X size={20} />
                         </button>
@@ -839,9 +984,38 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
                         />
                     </div>
 
+                    {/* Existing Media (Edit mode only) with DnD */}
+                    {isEditing && existingMedia.length > 0 && (
+                        <div>
+                            <label className="block text-sm font-medium mb-2">
+                                Mídias Existentes <span className="text-muted-foreground">(arraste para reordenar)</span>
+                            </label>
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <SortableContext items={existingMedia} strategy={rectSortingStrategy}>
+                                    <div className="grid grid-cols-4 gap-4">
+                                        {existingMedia.map((url, index) => (
+                                            <SortableMediaItem
+                                                key={url}
+                                                id={url}
+                                                url={url}
+                                                onRemove={() => removeExistingMedia(index)}
+                                            />
+                                        ))}
+                                    </div>
+                                </SortableContext>
+                            </DndContext>
+                        </div>
+                    )}
+
                     {/* Media Upload */}
                     <div>
-                        <label className="block text-sm font-medium mb-2">Mídias do Projeto (Imagens/Vídeos)</label>
+                        <label className="block text-sm font-medium mb-2">
+                            {isEditing ? "Adicionar Novas Mídias" : "Mídias do Projeto (Imagens/Vídeos)"}
+                        </label>
                         <div className="border-2 border-dashed border-white/10 rounded-2xl p-6 text-center hover:border-accent/30 transition-colors">
                             <input
                                 type="file"
@@ -858,15 +1032,16 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
                             </label>
                         </div>
 
-                        {/* Media Previews */}
+                        {/* New Media Previews */}
                         {mediaPreviews.length > 0 && (
                             <div className="grid grid-cols-4 gap-4 mt-4">
                                 {mediaPreviews.map((preview, index) => (
                                     <div key={index} className="relative group aspect-square rounded-xl overflow-hidden bg-white/5">
                                         <img src={preview} alt="" className="w-full h-full object-cover" />
+                                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-green-500/80 rounded text-xs">Novo</div>
                                         <button
                                             type="button"
-                                            onClick={() => removeMedia(index)}
+                                            onClick={() => removeNewMedia(index)}
                                             className="absolute top-2 right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
                                             <X size={14} />
@@ -892,7 +1067,7 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
                             ) : (
                                 <>
                                     <Save size={18} />
-                                    Salvar Projeto
+                                    {isEditing ? "Salvar Alterações" : "Salvar Projeto"}
                                 </>
                             )}
                         </button>
@@ -936,6 +1111,13 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                                 <div className="flex gap-2">
                                     <button
+                                        onClick={() => openEditModal(project)}
+                                        className="px-3 py-1.5 bg-accent/20 text-accent border border-accent/30 rounded-lg text-xs flex items-center gap-1 hover:bg-accent/30 transition-colors"
+                                    >
+                                        <Edit2 size={12} />
+                                        Editar
+                                    </button>
+                                    <button
                                         onClick={() => handleDelete(project.id, project.image_urls || [])}
                                         className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs flex items-center gap-1 hover:bg-red-500/30 transition-colors"
                                     >
@@ -977,7 +1159,7 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
                     </div>
                 ))}
 
-                {projects.length === 0 && !isCreating && (
+                {projects.length === 0 && !showForm && (
                     <div className="col-span-full text-center py-16">
                         <FolderOpen size={48} className="mx-auto mb-4 text-muted-foreground" />
                         <h4 className="text-lg font-medium mb-2">Nenhum projeto cadastrado</h4>
