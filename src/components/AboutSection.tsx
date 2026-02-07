@@ -83,31 +83,56 @@ export const AboutSection = () => {
   // Dynamic data from Supabase
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [projectsCount, setProjectsCount] = useState(0);
-  const [toolsCount, setToolsCount] = useState(0);
+  const [skillsCount, setSkillsCount] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchData = async () => {
-      // Fetch site settings
-      const { data: settingsData } = await supabase
-        .from('site_settings')
-        .select('*')
-        .single();
-      setSettings(settingsData);
+      try {
+        // Fetch site settings
+        const { data: settingsData, error: settingsError } = await supabase
+          .from('site_settings')
+          .select('*')
+          .single();
 
-      // Count projects
-      const { count: projCount } = await supabase
-        .from('projects')
-        .select('*', { count: 'exact', head: true });
-      setProjectsCount(projCount || 0);
+        if (settingsError) {
+          console.error('Settings fetch error:', settingsError);
+        } else if (isMounted) {
+          setSettings(settingsData);
+        }
 
-      // Count tools
-      const { count: toolCount } = await supabase
-        .from('tools')
-        .select('*', { count: 'exact', head: true });
-      setToolsCount(toolCount || 0);
+        // Count projects
+        const { count: projCount, error: projError } = await supabase
+          .from('projects')
+          .select('*', { count: 'exact', head: true });
+
+        if (projError) {
+          console.error('Projects count error:', projError);
+        } else if (isMounted) {
+          setProjectsCount(projCount || 0);
+        }
+
+        // Count skills (as "Ferramentas")
+        const { count: skillCount, error: skillError } = await supabase
+          .from('skills')
+          .select('*', { count: 'exact', head: true });
+
+        if (skillError) {
+          console.error('Skills count error:', skillError);
+        } else if (isMounted) {
+          setSkillsCount(skillCount || 0);
+        }
+      } catch (err) {
+        console.error('AboutSection fetch error:', err);
+      }
     };
 
     fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Fallback values
@@ -176,7 +201,7 @@ export const AboutSection = () => {
                   whileHover={{ scale: 1.05 }}
                   className="glass px-6 py-4 rounded-2xl text-center"
                 >
-                  <div className="text-3xl font-bold text-gradient">{toolsCount}+</div>
+                  <div className="text-3xl font-bold text-gradient">{skillsCount}+</div>
                   <div className="text-sm text-muted-foreground">Ferramentas</div>
                 </motion.div>
               </div>

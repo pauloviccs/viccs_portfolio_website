@@ -1,7 +1,23 @@
 import { motion, useInView } from 'framer-motion';
 import { useRef, useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
-import type { Skill, Language } from '../types/supabase';
+import { Wrench, Languages, AlertCircle } from 'lucide-react';
+
+interface Skill {
+  id: string;
+  name: string;
+  level: number | null;
+  category: string | null;
+  sort_order: number | null;
+}
+
+interface Language {
+  id: string;
+  name: string;
+  level: number | null;
+  flag: string | null;
+  sort_order: number | null;
+}
 
 const categoryColors: Record<string, string> = {
   design: 'from-primary to-primary',
@@ -14,50 +30,94 @@ export const SkillsSection = () => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
-  // Dynamic data from Supabase
   const [skills, setSkills] = useState<Skill[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchData = async () => {
       try {
+        // Fetch skills
         const { data: skillsData, error: skillsError } = await supabase
           .from('skills')
           .select('*')
-          .order('sort_order');
+          .order('sort_order', { ascending: true, nullsFirst: false });
 
         if (skillsError) {
           console.error('Skills fetch error:', skillsError);
-        } else {
-          setSkills((skillsData as Skill[]) || []);
+          throw skillsError;
         }
 
+        // Fetch languages
         const { data: langData, error: langError } = await supabase
           .from('languages')
           .select('*')
-          .order('sort_order');
+          .order('sort_order', { ascending: true, nullsFirst: false });
 
         if (langError) {
           console.error('Languages fetch error:', langError);
-        } else {
-          setLanguages((langData as Language[]) || []);
+          throw langError;
         }
-      } catch (err) {
+
+        if (isMounted) {
+          setSkills(skillsData || []);
+          setLanguages(langData || []);
+          console.log('Skills loaded:', skillsData?.length || 0);
+          console.log('Languages loaded:', langData?.length || 0);
+        }
+      } catch (err: any) {
         console.error('Fetch error:', err);
+        if (isMounted) {
+          setError(err.message || 'Erro ao carregar dados');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
+  // Loading state
   if (loading) {
     return (
       <section id="skills" className="py-20 relative overflow-hidden">
-        <div className="container mx-auto px-6 flex justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
+        <div className="container mx-auto px-6 flex flex-col items-center justify-center min-h-[300px]">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent mb-4" />
+          <p className="text-muted-foreground text-sm">Carregando habilidades...</p>
+        </div>
+      </section>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <section id="skills" className="py-20 relative overflow-hidden">
+        <div className="container mx-auto px-6 flex flex-col items-center justify-center min-h-[300px]">
+          <AlertCircle size={48} className="text-red-500 mb-4" />
+          <p className="text-red-500 text-sm">{error}</p>
+        </div>
+      </section>
+    );
+  }
+
+  // Empty state
+  if (skills.length === 0 && languages.length === 0) {
+    return (
+      <section id="skills" className="py-20 relative overflow-hidden">
+        <div className="container mx-auto px-6 flex flex-col items-center justify-center min-h-[300px]">
+          <Wrench size={48} className="text-muted-foreground mb-4" />
+          <p className="text-muted-foreground text-sm">Nenhuma habilidade cadastrada ainda.</p>
         </div>
       </section>
     );
@@ -77,7 +137,7 @@ export const SkillsSection = () => {
           className="text-center mb-16"
         >
           <span className="text-sm font-medium tracking-[0.3em] text-primary mb-4 block">O QUE OFEREÇO</span>
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">Habilidades & Idiomas</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">Habilidades & Ferramentas</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
             Uma coleção diversificada de ferramentas e tecnologias que domino para criar experiências visuais incríveis.
           </p>
@@ -85,30 +145,32 @@ export const SkillsSection = () => {
 
         <div className="max-w-5xl mx-auto">
           {/* Skills Grid */}
-          <div className="grid md:grid-cols-2 gap-6 mb-16">
-            {skills.map((skill, index) => (
-              <motion.div
-                key={skill.id}
-                initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30 }}
-                animate={isInView ? { opacity: 1, x: 0 } : {}}
-                transition={{ duration: 0.5, delay: index * 0.05 }}
-                className="glass rounded-2xl p-5 group hover:border-primary/30 transition-colors"
-              >
-                <div className="flex justify-between items-center mb-3">
-                  <span className="font-medium">{skill.name}</span>
-                  <span className="text-sm text-muted-foreground">{skill.level}%</span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={isInView ? { width: `${skill.level}%` } : {}}
-                    transition={{ duration: 1, delay: 0.5 + index * 0.05, ease: 'easeOut' }}
-                    className={`h-full rounded-full bg-gradient-to-r ${categoryColors[skill.category || 'design']}`}
-                  />
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          {skills.length > 0 && (
+            <div className="grid md:grid-cols-2 gap-6 mb-16">
+              {skills.map((skill, index) => (
+                <motion.div
+                  key={skill.id}
+                  initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30 }}
+                  animate={isInView ? { opacity: 1, x: 0 } : {}}
+                  transition={{ duration: 0.5, delay: index * 0.05 }}
+                  className="glass rounded-2xl p-5 group hover:border-primary/30 transition-colors"
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="font-medium">{skill.name}</span>
+                    <span className="text-sm text-muted-foreground">{skill.level || 0}%</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={isInView ? { width: `${skill.level || 0}%` } : {}}
+                      transition={{ duration: 1, delay: 0.5 + index * 0.05, ease: 'easeOut' }}
+                      className={`h-full rounded-full bg-gradient-to-r ${categoryColors[skill.category || 'design']}`}
+                    />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
 
           {/* Languages */}
           {languages.length > 0 && (
@@ -117,7 +179,10 @@ export const SkillsSection = () => {
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: 0.8 }}
             >
-              <h3 className="text-2xl font-bold mb-6 text-center">Idiomas</h3>
+              <div className="flex items-center justify-center gap-3 mb-6">
+                <Languages size={24} className="text-primary" />
+                <h3 className="text-2xl font-bold">Idiomas</h3>
+              </div>
               <div className="flex flex-wrap justify-center gap-6">
                 {languages.map((lang) => (
                   <motion.div
@@ -125,7 +190,7 @@ export const SkillsSection = () => {
                     whileHover={{ scale: 1.05, rotate: 2 }}
                     className="glass rounded-2xl p-6 min-w-[200px] text-center"
                   >
-                    <span className="text-4xl mb-3 block">{lang.flag}</span>
+                    <span className="text-4xl mb-3 block">{lang.flag || '🌐'}</span>
                     <h4 className="font-medium mb-2">{lang.name}</h4>
                     <div className="flex justify-center gap-1">
                       {[...Array(5)].map((_, i) => (
