@@ -42,6 +42,18 @@ export const ContactSection = () => {
       }
     };
     fetchSocialLinks();
+
+    // Realtime subscription for automatic updates
+    const channel = supabase
+      .channel('contact-settings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, () => {
+        fetchSocialLinks();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (

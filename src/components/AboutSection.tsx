@@ -130,8 +130,33 @@ export const AboutSection = () => {
 
     fetchData();
 
+    // Realtime subscriptions for automatic updates
+    const settingsChannel = supabase
+      .channel('about-settings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, () => {
+        if (isMounted) fetchData();
+      })
+      .subscribe();
+
+    const projectsChannel = supabase
+      .channel('about-projects')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
+        if (isMounted) fetchData();
+      })
+      .subscribe();
+
+    const skillsChannel = supabase
+      .channel('about-skills')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'skills' }, () => {
+        if (isMounted) fetchData();
+      })
+      .subscribe();
+
     return () => {
       isMounted = false;
+      supabase.removeChannel(settingsChannel);
+      supabase.removeChannel(projectsChannel);
+      supabase.removeChannel(skillsChannel);
     };
   }, []);
 

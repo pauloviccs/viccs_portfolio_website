@@ -79,8 +79,25 @@ export const SkillsSection = () => {
 
     fetchData();
 
+    // Realtime subscriptions for automatic updates
+    const skillsChannel = supabase
+      .channel('skills-section-skills')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'skills' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    const languagesChannel = supabase
+      .channel('skills-section-languages')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'languages' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
     return () => {
       isMounted = false;
+      supabase.removeChannel(skillsChannel);
+      supabase.removeChannel(languagesChannel);
     };
   }, []);
 

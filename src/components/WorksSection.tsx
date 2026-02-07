@@ -48,6 +48,18 @@ export const WorksSection = () => {
     };
 
     fetchProjects();
+
+    // Realtime subscription for automatic updates
+    const channel = supabase
+      .channel('works-projects')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
+        fetchProjects();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (
