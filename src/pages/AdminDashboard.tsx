@@ -191,13 +191,14 @@ function ProfileSection({ settings, onUpdate }: { settings: SiteSettings | null;
     };
 
     const handleSave = async () => {
+        if (!settings?.id) return;
         setSaving(true);
         await supabase.from("site_settings").update({
             bio_text: bio,
             years_experience: years,
             profile_image_url: imageUrl,
             updated_at: new Date().toISOString(),
-        }).eq("id", settings?.id);
+        }).eq("id", settings.id);
         setSaving(false);
         onUpdate();
     };
@@ -539,7 +540,7 @@ function ToolsSection({ tools, onUpdate }: { tools: Tool[]; onUpdate: () => void
 
 // ========== ORDERS SECTION ==========
 function OrdersSection({ orders, onUpdate }: { orders: (Order & { profiles: Profile | null })[]; onUpdate: () => void }) {
-    const updateStatus = async (id: string, status: string) => {
+    const updateStatus = async (id: string, status: "pending" | "approved" | "in_progress" | "completed" | "cancelled") => {
         await supabase.from("orders").update({ status }).eq("id", id);
         onUpdate();
     };
