@@ -5,7 +5,7 @@ import { AdminHeader } from "../components/dashboard/AdminHeader";
 import type { SiteSettings, Skill, Language, Tool, Order, Project, Profile } from "../types/supabase";
 import {
     Plus, Trash2, Edit2, Save, X, Upload,
-    Briefcase, Users, FolderOpen, Clock, GripVertical
+    Briefcase, Users, FolderOpen, Clock, GripVertical, Play
 } from "lucide-react";
 import {
     DndContext,
@@ -660,6 +660,13 @@ function OrdersSection({ orders, onUpdate }: { orders: (Order & { profiles: Prof
     );
 }
 
+// ========== HELPER: Check if URL is video ==========
+function isVideoUrl(url: string): boolean {
+    const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
+    const lowercaseUrl = url.toLowerCase();
+    return videoExtensions.some(ext => lowercaseUrl.includes(ext));
+}
+
 // ========== SORTABLE MEDIA ITEM ==========
 function SortableMediaItem({ id, url, onRemove }: { id: string; url: string; onRemove: () => void }) {
     const {
@@ -677,13 +684,32 @@ function SortableMediaItem({ id, url, onRemove }: { id: string; url: string; onR
         opacity: isDragging ? 0.5 : 1,
     };
 
+    const isVideo = isVideoUrl(url);
+
     return (
         <div
             ref={setNodeRef}
             style={style}
             className="relative group aspect-square rounded-xl overflow-hidden bg-white/5 border border-white/10"
         >
-            <img src={url} alt="" className="w-full h-full object-cover" />
+            {isVideo ? (
+                <>
+                    <video
+                        src={url}
+                        className="w-full h-full object-cover"
+                        muted
+                        preload="metadata"
+                    />
+                    {/* Play icon overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-12 h-12 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center">
+                            <Play size={24} className="text-white ml-1" />
+                        </div>
+                    </div>
+                </>
+            ) : (
+                <img src={url} alt="" className="w-full h-full object-cover" />
+            )}
 
             {/* Drag handle */}
             <div
