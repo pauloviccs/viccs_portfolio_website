@@ -10,6 +10,7 @@ export const HeroSection = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [images, setImages] = useState<HTMLImageElement[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
 
   // Track scroll progress within this specific section
   const { scrollYProgress } = useScroll({
@@ -24,28 +25,45 @@ export const HeroSection = () => {
   const contentOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
   const contentY = useTransform(scrollYProgress, [0, 0.5], [0, -50]);
 
-  // Load images
+  // Load images progressively
   useEffect(() => {
-    const loadImages = async () => {
-      const imgPromises = Array.from({ length: FRAME_COUNT }, (_, i) => {
-        const paddedIndex = i.toString().padStart(3, "0");
-        const img = new Image();
-        img.src = `${IMAGES_BASE_PATH}${paddedIndex}.jpg`;
-        return new Promise<HTMLImageElement>((resolve) => {
-          img.onload = () => resolve(img);
-          img.onerror = () => {
-            console.warn(`Failed to load frame ${i}`);
-            resolve(img);
-          }
-        });
-      });
+    const loadedImages: HTMLImageElement[] = new Array(FRAME_COUNT);
+    let loadedCount = 0;
 
-      const loadedImages = await Promise.all(imgPromises);
-      setImages(loadedImages);
-      setLoaded(true);
+    // Load first frame immediately for faster perceived loading
+    const firstImg = new Image();
+    firstImg.src = `${IMAGES_BASE_PATH}000.jpg`;
+    firstImg.onload = () => {
+      loadedImages[0] = firstImg;
+      setImages([...loadedImages]);
     };
 
-    loadImages();
+    // Load remaining frames
+    for (let i = 0; i < FRAME_COUNT; i++) {
+      const paddedIndex = i.toString().padStart(3, "0");
+      const img = new Image();
+      img.src = `${IMAGES_BASE_PATH}${paddedIndex}.jpg`;
+
+      img.onload = () => {
+        loadedImages[i] = img;
+        loadedCount++;
+        setLoadProgress(Math.round((loadedCount / FRAME_COUNT) * 100));
+
+        if (loadedCount === FRAME_COUNT) {
+          setImages([...loadedImages]);
+          setLoaded(true);
+        }
+      };
+
+      img.onerror = () => {
+        console.warn(`Failed to load frame ${i}`);
+        loadedCount++;
+        if (loadedCount === FRAME_COUNT) {
+          setImages([...loadedImages]);
+          setLoaded(true);
+        }
+      };
+    }
   }, []);
 
   // Render canvas
@@ -112,8 +130,15 @@ export const HeroSection = () => {
         {/* Canvas Background */}
         <div className="absolute inset-0 z-0">
           {!loaded && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
-              <span className="text-white/50 animate-pulse">Loading Experience...</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 gap-4">
+              <span className="text-white/70 text-sm tracking-widest">CARREGANDO EXPERIÊNCIA</span>
+              <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-300"
+                  style={{ width: `${loadProgress}%` }}
+                />
+              </div>
+              <span className="text-white/40 text-xs">{loadProgress}%</span>
             </div>
           )}
           <canvas

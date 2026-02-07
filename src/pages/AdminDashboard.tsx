@@ -175,17 +175,28 @@ function ProfileSection({ settings, onUpdate }: { settings: SiteSettings | null;
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // Validate minimum size 556x556
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        await new Promise((resolve) => { img.onload = resolve; });
+        if (img.width < 556 || img.height < 556) {
+            alert("A imagem deve ter no mínimo 556x556 pixels.");
+            return;
+        }
+
         setUploading(true);
         const fileExt = file.name.split('.').pop();
         const fileName = `profile-${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
-            .from("projects")
+            .from("profile-images")
             .upload(fileName, file, { upsert: true });
 
         if (!uploadError) {
-            const { data } = supabase.storage.from("projects").getPublicUrl(fileName);
+            const { data } = supabase.storage.from("profile-images").getPublicUrl(fileName);
             setImageUrl(data.publicUrl);
+        } else {
+            alert("Erro no upload: " + uploadError.message);
         }
         setUploading(false);
     };
@@ -587,41 +598,28 @@ function OrdersSection({ orders, onUpdate }: { orders: (Order & { profiles: Prof
     );
 }
 
-// ========== PROJECTS SECTION ==========
+// ========== PROJECTS SECTION (SIMPLIFIED) ==========
 function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate: () => void }) {
     const [title, setTitle] = useState("");
     const [desc, setDesc] = useState("");
     const [category, setCategory] = useState("Design");
-    const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
 
-    const handleUpload = async (e: React.FormEvent) => {
+    const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!file || !title) return;
+        if (!title) return;
 
         setUploading(true);
-        const fileExt = file.name.split('.').pop();
-        const fileName = `project-${Date.now()}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage.from("projects").upload(fileName, file);
-        if (uploadError) {
-            alert("Erro no upload: " + uploadError.message);
-            setUploading(false);
-            return;
-        }
-
-        const { data } = supabase.storage.from("projects").getPublicUrl(fileName);
 
         await supabase.from("projects").insert({
             title,
             description: desc,
             category,
-            image_urls: [data.publicUrl],
+            image_urls: [],
         });
 
         setTitle("");
         setDesc("");
-        setFile(null);
         setUploading(false);
         onUpdate();
     };
@@ -633,9 +631,10 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
 
     return (
         <div className="space-y-8">
-            {/* Upload Form */}
-            <form onSubmit={handleUpload} className="glass rounded-2xl p-6 space-y-4">
+            {/* Create Form */}
+            <form onSubmit={handleCreate} className="glass rounded-2xl p-6 space-y-4">
                 <h3 className="text-lg font-bold">Novo Projeto</h3>
+                <p className="text-sm text-muted-foreground">Adicione projetos para contabilizar no contador da landing page.</p>
                 <input
                     type="text"
                     placeholder="Título do projeto"
@@ -650,33 +649,38 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
                     <option value="3D">3D</option>
                 </select>
                 <textarea
-                    placeholder="Descrição"
+                    placeholder="Descrição (opcional)"
                     value={desc}
                     onChange={(e) => setDesc(e.target.value)}
                     className="w-full h-24 bg-white/5 border border-white/10 rounded-xl px-4 py-2 resize-none"
                 />
-                <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" required />
                 <button disabled={uploading} className="px-6 py-3 bg-accent text-primary rounded-full font-bold disabled:opacity-50">
-                    {uploading ? "Enviando..." : "Publicar Projeto"}
+                    {uploading ? "Criando..." : "Adicionar Projeto"}
                 </button>
             </form>
 
-            {/* Projects Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Total Counter */}
+            <div className="glass rounded-2xl p-6">
+                <div className="text-center">
+                    <div className="text-5xl font-bold text-gradient">{projects.length}</div>
+                    <div className="text-muted-foreground mt-2">Projetos Cadastrados</div>
+                </div>
+            </div>
+
+            {/* Projects List */}
+            <div className="space-y-3">
                 {projects.map((project) => (
-                    <div key={project.id} className="glass rounded-xl overflow-hidden group">
-                        <div className="aspect-video bg-muted">
-                            {project.image_urls?.[0] && (
-                                <img src={project.image_urls[0]} alt={project.title} className="w-full h-full object-cover" />
-                            )}
-                        </div>
-                        <div className="p-4">
+                    <div key={project.id} className="glass rounded-xl p-4 flex items-center justify-between">
+                        <div>
                             <h4 className="font-bold">{project.title}</h4>
-                            <p className="text-sm text-muted-foreground">{project.category}</p>
-                            <button onClick={() => handleDelete(project.id)} className="mt-2 text-xs text-red-400 hover:underline">
-                                Remover
-                            </button>
+                            <div className="flex gap-2 text-sm text-muted-foreground">
+                                <span className="px-2 py-0.5 bg-white/5 rounded-full">{project.category}</span>
+                                {project.description && <span>{project.description.slice(0, 50)}...</span>}
+                            </div>
                         </div>
+                        <button onClick={() => handleDelete(project.id)} className="text-red-400 hover:underline text-sm">
+                            Remover
+                        </button>
                     </div>
                 ))}
             </div>
