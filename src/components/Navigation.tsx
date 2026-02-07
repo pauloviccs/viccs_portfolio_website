@@ -93,7 +93,7 @@ export const Navigation = () => {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            VICCS
+            VICCS Design
           </motion.a>
 
           {/* Desktop Navigation */}
