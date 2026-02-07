@@ -83,7 +83,9 @@ export const Navigation = () => {
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'glass-strong py-3' : 'py-6'
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled
+            ? 'py-3 bg-white/5 backdrop-blur-xl border-b border-white/10 shadow-lg shadow-black/5'
+            : 'py-6'
           }`}
       >
         <div className="container mx-auto px-6 flex items-center justify-between">
