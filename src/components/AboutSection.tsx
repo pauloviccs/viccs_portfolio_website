@@ -135,8 +135,8 @@ export const AboutSection = () => {
     };
   }, []);
 
-  // Fallback values
-  const imageUrl = settings?.profile_image_url || "https://media.discordapp.net/attachments/1468682276534485156/1468682417291399208/5.png";
+  // Fallback values - use placeholder if no profile image configured
+  const imageUrl = settings?.profile_image_url || "/placeholder.svg";
   const bioText = settings?.bio_text || "Apaixonado por criação, trabalhei de forma informal desde os meus 12 anos...";
   const yearsExp = settings?.years_experience || 15;
 

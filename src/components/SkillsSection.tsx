@@ -1,5 +1,5 @@
-import { motion, useInView } from 'framer-motion';
-import { useRef, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Wrench, Languages, AlertCircle } from 'lucide-react';
 
@@ -27,9 +27,6 @@ const categoryColors: Record<string, string> = {
 };
 
 export const SkillsSection = () => {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-100px' });
-
   const [skills, setSkills] = useState<Skill[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,10 +126,11 @@ export const SkillsSection = () => {
       <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-secondary/5 rounded-full blur-3xl" />
 
-      <div className="container mx-auto px-6 relative z-10" ref={ref}>
+      <div className="container mx-auto px-6 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-50px' }}
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
@@ -151,8 +149,9 @@ export const SkillsSection = () => {
                 <motion.div
                   key={skill.id}
                   initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30 }}
-                  animate={isInView ? { opacity: 1, x: 0 } : {}}
-                  transition={{ duration: 0.5, delay: index * 0.05 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, margin: '-20px' }}
+                  transition={{ duration: 0.5, delay: index * 0.03 }}
                   className="glass rounded-2xl p-5 group hover:border-primary/30 transition-colors"
                 >
                   <div className="flex justify-between items-center mb-3">
@@ -162,8 +161,9 @@ export const SkillsSection = () => {
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={isInView ? { width: `${skill.level || 0}%` } : {}}
-                      transition={{ duration: 1, delay: 0.5 + index * 0.05, ease: 'easeOut' }}
+                      whileInView={{ width: `${skill.level || 0}%` }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 1, delay: 0.2 + index * 0.03, ease: 'easeOut' }}
                       className={`h-full rounded-full bg-gradient-to-r ${categoryColors[skill.category || 'design']}`}
                     />
                   </div>
@@ -176,8 +176,9 @@ export const SkillsSection = () => {
           {languages.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.6, delay: 0.8 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-20px' }}
+              transition={{ duration: 0.6, delay: 0.2 }}
             >
               <div className="flex items-center justify-center gap-3 mb-6">
                 <Languages size={24} className="text-primary" />
