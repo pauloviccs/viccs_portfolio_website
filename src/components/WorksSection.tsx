@@ -2,15 +2,17 @@ import { motion, useInView } from 'framer-motion';
 import { useRef, useState, useEffect } from 'react';
 import { ExternalLink, FolderOpen } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { ProjectModal } from './ProjectModal';
 
 interface Project {
   id: string;
   title: string;
-  description?: string;
-  category?: string;
-  image_urls?: string[];
-  client_name?: string;
-  tags?: string[];
+  description?: string | null;
+  category?: string | null;
+  image_urls?: string[] | null;
+  client_name?: string | null;
+  tags?: string[] | null;
+  completion_date?: string | null;
 }
 
 export const WorksSection = () => {
@@ -19,6 +21,20 @@ export const WorksSection = () => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Modal state
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleOpenProject = (project: Project) => {
+    setSelectedProject(project);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => setSelectedProject(null), 300);
+  };
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -124,7 +140,8 @@ export const WorksSection = () => {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className="inline-flex items-center gap-2 text-sm font-medium glass px-4 py-2 rounded-xl w-fit"
+                        onClick={() => handleOpenProject(project)}
+                        className="inline-flex items-center gap-2 text-sm font-medium glass px-4 py-2 rounded-xl w-fit cursor-pointer"
                       >
                         Ver Projeto <ExternalLink size={14} />
                       </motion.button>
@@ -136,6 +153,13 @@ export const WorksSection = () => {
           </div>
         )}
       </div>
+
+      {/* Project Modal */}
+      <ProjectModal
+        project={selectedProject}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
     </section>
   );
 };

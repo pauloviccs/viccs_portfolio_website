@@ -176,7 +176,7 @@ export const HeroSection = () => {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="text-6xl md:text-8xl lg:text-9xl font-bold mb-6 text-white drop-shadow-2xl"
             >
-              Paulo Vinicios
+              VICCS
             </motion.h1>
 
             <motion.p

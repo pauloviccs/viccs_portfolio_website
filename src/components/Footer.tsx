@@ -11,13 +11,13 @@ export const Footer = () => {
             animate={{ opacity: 1 }}
             className="text-2xl font-bold text-gradient"
           >
-            VICCS
+            VICCS Design
           </motion.div>
-          
+
           <p className="text-sm text-muted-foreground flex items-center gap-1">
             Feito com <Heart size={14} className="text-secondary" /> por Paulo Vinicios
           </p>
-          
+
           <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} Todos os direitos reservados
           </p>
