@@ -29,12 +29,24 @@ export function AuthPage() {
                 if (error) throw error;
                 alert("Verifique seu email para o link de confirmação!");
             } else {
-                const { error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabase.auth.signInWithPassword({
                     email,
                     password,
                 });
                 if (error) throw error;
-                navigate("/dashboard");
+
+                // Buscar role do usuário e redirecionar
+                const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("role")
+                    .eq("id", data.user.id)
+                    .single();
+
+                if (profile?.role === "admin") {
+                    navigate("/admin");
+                } else {
+                    navigate("/dashboard");
+                }
             }
         } catch (err: any) {
             setError(err.message);
@@ -42,6 +54,7 @@ export function AuthPage() {
             setLoading(false);
         }
     };
+
 
     const handleSocialLogin = async (provider: 'google' | 'discord') => {
         try {

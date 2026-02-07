@@ -9,69 +9,60 @@ export type Json =
 export type Database = {
     public: {
         Tables: {
-            orders: {
+            languages: {
                 Row: {
+                    created_at: string | null
+                    flag: string | null
                     id: string
-                    client_id: string
-                    title: string
-                    description: string | null
-                    priority: string
-                    whatsapp: string | null
-                    status: string
-                    created_at: string
-                    updated_at: string
+                    level: number | null
+                    name: string
+                    sort_order: number | null
                 }
                 Insert: {
+                    created_at?: string | null
+                    flag?: string | null
                     id?: string
-                    client_id: string
-                    title: string
-                    description?: string | null
-                    priority?: string
-                    whatsapp?: string | null
-                    status?: string
-                    created_at?: string
-                    updated_at?: string
+                    level?: number | null
+                    name: string
+                    sort_order?: number | null
                 }
                 Update: {
+                    created_at?: string | null
+                    flag?: string | null
                     id?: string
-                    client_id?: string
-                    title?: string
-                    description?: string | null
-                    priority?: string
-                    whatsapp?: string | null
-                    status?: string
-                    created_at?: string
-                    updated_at?: string
+                    level?: number | null
+                    name?: string
+                    sort_order?: number | null
                 }
                 Relationships: []
             }
             order_messages: {
                 Row: {
+                    attachments: string[] | null
+                    content: string
+                    created_at: string
                     id: string
+                    is_admin: boolean | null
                     order_id: string
                     user_id: string
-                    content: string
-                    is_admin: boolean
-                    attachments: string[] | null
-                    created_at: string
                 }
                 Insert: {
+                    attachments?: string[] | null
+                    content: string
+                    created_at?: string
                     id?: string
+                    is_admin?: boolean | null
                     order_id: string
                     user_id: string
-                    content: string
-                    is_admin?: boolean
-                    attachments?: string[] | null
-                    created_at?: string
                 }
                 Update: {
+                    attachments?: string[] | null
+                    content?: string
+                    created_at?: string
                     id?: string
+                    is_admin?: boolean | null
                     order_id?: string
                     user_id?: string
-                    content?: string
-                    is_admin?: boolean
-                    attachments?: string[] | null
-                    created_at?: string
                 }
                 Relationships: [
                     {
@@ -79,6 +70,56 @@ export type Database = {
                         columns: ["order_id"]
                         isOneToOne: false
                         referencedRelation: "orders"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            orders: {
+                Row: {
+                    budget_range: string | null
+                    client_id: string
+                    created_at: string | null
+                    deadline: string | null
+                    description: string
+                    id: string
+                    priority: string | null
+                    status: Database["public"]["Enums"]["order_status"] | null
+                    title: string
+                    updated_at: string | null
+                    whatsapp: string | null
+                }
+                Insert: {
+                    budget_range?: string | null
+                    client_id: string
+                    created_at?: string | null
+                    deadline?: string | null
+                    description: string
+                    id?: string
+                    priority?: string | null
+                    status?: Database["public"]["Enums"]["order_status"] | null
+                    title: string
+                    updated_at?: string | null
+                    whatsapp?: string | null
+                }
+                Update: {
+                    budget_range?: string | null
+                    client_id?: string
+                    created_at?: string | null
+                    deadline?: string | null
+                    description?: string
+                    id?: string
+                    priority?: string | null
+                    status?: Database["public"]["Enums"]["order_status"] | null
+                    title?: string
+                    updated_at?: string | null
+                    whatsapp?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "orders_client_id_fkey"
+                        columns: ["client_id"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
                         referencedColumns: ["id"]
                     }
                 ]
@@ -146,6 +187,78 @@ export type Database = {
                 }
                 Relationships: []
             }
+            site_settings: {
+                Row: {
+                    bio_text: string | null
+                    id: string
+                    profile_image_url: string | null
+                    updated_at: string | null
+                    years_experience: number | null
+                }
+                Insert: {
+                    bio_text?: string | null
+                    id?: string
+                    profile_image_url?: string | null
+                    updated_at?: string | null
+                    years_experience?: number | null
+                }
+                Update: {
+                    bio_text?: string | null
+                    id?: string
+                    profile_image_url?: string | null
+                    updated_at?: string | null
+                    years_experience?: number | null
+                }
+                Relationships: []
+            }
+            skills: {
+                Row: {
+                    category: string | null
+                    created_at: string | null
+                    id: string
+                    level: number | null
+                    name: string
+                    sort_order: number | null
+                }
+                Insert: {
+                    category?: string | null
+                    created_at?: string | null
+                    id?: string
+                    level?: number | null
+                    name: string
+                    sort_order?: number | null
+                }
+                Update: {
+                    category?: string | null
+                    created_at?: string | null
+                    id?: string
+                    level?: number | null
+                    name?: string
+                    sort_order?: number | null
+                }
+                Relationships: []
+            }
+            tools: {
+                Row: {
+                    created_at: string | null
+                    icon_url: string | null
+                    id: string
+                    name: string
+                }
+                Insert: {
+                    created_at?: string | null
+                    icon_url?: string | null
+                    id?: string
+                    name: string
+                }
+                Update: {
+                    created_at?: string | null
+                    icon_url?: string | null
+                    id?: string
+                    name?: string
+                }
+                Relationships: []
+            }
         }
         Views: {
             [_ in never]: never
@@ -167,3 +280,12 @@ export type Database = {
         }
     }
 }
+
+// Helper types
+export type SiteSettings = Database["public"]["Tables"]["site_settings"]["Row"]
+export type Skill = Database["public"]["Tables"]["skills"]["Row"]
+export type Language = Database["public"]["Tables"]["languages"]["Row"]
+export type Tool = Database["public"]["Tables"]["tools"]["Row"]
+export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
+export type Order = Database["public"]["Tables"]["orders"]["Row"]
+export type Project = Database["public"]["Tables"]["projects"]["Row"]

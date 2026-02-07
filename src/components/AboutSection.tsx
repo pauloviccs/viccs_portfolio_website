@@ -1,7 +1,9 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { motion, useInView, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { supabase } from '../supabaseClient';
+import type { SiteSettings } from '../types/supabase';
 
-const ProfileCard = () => {
+const ProfileCard = ({ imageUrl }: { imageUrl: string }) => {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
@@ -28,7 +30,6 @@ const ProfileCard = () => {
     y.set(0);
   };
 
-  // Prismatic gradient movement
   const prismBg = useTransform(mouseX, [-0.5, 0.5], ["0% 50%", "100% 50%"]);
 
   return (
@@ -52,7 +53,7 @@ const ProfileCard = () => {
       <div className="relative glass rounded-[2rem] p-2 overflow-hidden border border-white/10 shadow-2xl">
         <div className="aspect-square rounded-[1.5rem] overflow-hidden relative z-10 bg-black">
           <img
-            src="https://media.discordapp.net/attachments/1468682276534485156/1468682417291399208/5.png?ex=6984e897&is=69839717&hm=0d4c95436179f4f42e28a61d49ebb3edcad70cafcff314e72e48ebcc6a28d9ca&=&format=webp&quality=lossless&width=544&height=544"
+            src={imageUrl}
             alt="Paulo Vinicios"
             className="w-full h-full object-cover"
           />
@@ -79,6 +80,41 @@ export const AboutSection = () => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
+  // Dynamic data from Supabase
+  const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [projectsCount, setProjectsCount] = useState(0);
+  const [toolsCount, setToolsCount] = useState(0);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      // Fetch site settings
+      const { data: settingsData } = await supabase
+        .from('site_settings')
+        .select('*')
+        .single();
+      setSettings(settingsData);
+
+      // Count projects
+      const { count: projCount } = await supabase
+        .from('projects')
+        .select('*', { count: 'exact', head: true });
+      setProjectsCount(projCount || 0);
+
+      // Count tools
+      const { count: toolCount } = await supabase
+        .from('tools')
+        .select('*', { count: 'exact', head: true });
+      setToolsCount(toolCount || 0);
+    };
+
+    fetchData();
+  }, []);
+
+  // Fallback values
+  const imageUrl = settings?.profile_image_url || "https://media.discordapp.net/attachments/1468682276534485156/1468682417291399208/5.png";
+  const bioText = settings?.bio_text || "Apaixonado por criação, trabalhei de forma informal desde os meus 12 anos...";
+  const yearsExp = settings?.years_experience || 15;
+
   return (
     <section id="sobre" className="py-20 relative overflow-hidden">
       {/* Background Orb */}
@@ -102,7 +138,7 @@ export const AboutSection = () => {
               transition={{ duration: 0.8 }}
               className="relative perspective-1000"
             >
-              <ProfileCard />
+              <ProfileCard imageUrl={imageUrl} />
             </motion.div>
 
             {/* Content */}
@@ -118,10 +154,7 @@ export const AboutSection = () => {
               <div className="h-1 w-20 bg-gradient-to-r from-primary to-secondary rounded-full mb-6" />
 
               <p className="text-lg text-muted-foreground leading-relaxed mb-8">
-                Apaixonado por criação, trabalhei de forma informal desde os meus 12 anos.
-                Hoje me encontro com 27, com muita experiência na minha área profissional,
-                mas sempre atrás de evoluir, explorando novas áreas e me desafiando a
-                aprender novos conceitos e ferramentas.
+                {bioText}
               </p>
 
               <div className="flex flex-wrap gap-4">
@@ -129,21 +162,21 @@ export const AboutSection = () => {
                   whileHover={{ scale: 1.05 }}
                   className="glass px-6 py-4 rounded-2xl text-center"
                 >
-                  <div className="text-3xl font-bold text-gradient">15+</div>
+                  <div className="text-3xl font-bold text-gradient">{yearsExp}+</div>
                   <div className="text-sm text-muted-foreground">Anos de Experiência</div>
                 </motion.div>
                 <motion.div
                   whileHover={{ scale: 1.05 }}
                   className="glass px-6 py-4 rounded-2xl text-center"
                 >
-                  <div className="text-3xl font-bold text-gradient">50+</div>
+                  <div className="text-3xl font-bold text-gradient">{projectsCount}+</div>
                   <div className="text-sm text-muted-foreground">Projetos Completos</div>
                 </motion.div>
                 <motion.div
                   whileHover={{ scale: 1.05 }}
                   className="glass px-6 py-4 rounded-2xl text-center"
                 >
-                  <div className="text-3xl font-bold text-gradient">12+</div>
+                  <div className="text-3xl font-bold text-gradient">{toolsCount}+</div>
                   <div className="text-sm text-muted-foreground">Ferramentas</div>
                 </motion.div>
               </div>

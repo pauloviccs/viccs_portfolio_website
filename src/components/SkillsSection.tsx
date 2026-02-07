@@ -1,25 +1,7 @@
 import { motion, useInView } from 'framer-motion';
-import { useRef } from 'react';
-
-const skills = [
-  { name: 'Adobe Photoshop', level: 95, category: 'design' },
-  { name: 'Adobe After Effects', level: 90, category: 'motion' },
-  { name: 'Adobe Illustrator', level: 92, category: 'design' },
-  { name: 'Adobe Premiere', level: 88, category: 'motion' },
-  { name: 'Adobe InDesign', level: 85, category: 'design' },
-  { name: 'Adobe Lightroom', level: 80, category: 'design' },
-  { name: 'Cinema 4D', level: 85, category: '3d' },
-  { name: 'Blender', level: 82, category: '3d' },
-  { name: '3DS Max', level: 75, category: '3d' },
-  { name: 'Figma', level: 88, category: 'design' },
-  { name: 'Adobe XD', level: 80, category: 'design' },
-  { name: 'Cursor', level: 70, category: 'dev' },
-];
-
-const languages = [
-  { name: 'Português', level: 100, flag: '🇧🇷' },
-  { name: 'Inglês', level: 75, flag: '🇺🇸' },
-];
+import { useRef, useEffect, useState } from 'react';
+import { supabase } from '../supabaseClient';
+import type { Skill, Language } from '../types/supabase';
 
 const categoryColors: Record<string, string> = {
   design: 'from-primary to-primary',
@@ -31,6 +13,41 @@ const categoryColors: Record<string, string> = {
 export const SkillsSection = () => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
+
+  // Dynamic data from Supabase
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: skillsData } = await supabase
+        .from('skills')
+        .select('*')
+        .order('sort_order');
+      setSkills(skillsData || []);
+
+      const { data: langData } = await supabase
+        .from('languages')
+        .select('*')
+        .order('sort_order');
+      setLanguages(langData || []);
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <section id="skills" className="py-20 relative overflow-hidden">
+        <div className="container mx-auto px-6 flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="skills" className="py-20 relative overflow-hidden">
@@ -57,7 +74,7 @@ export const SkillsSection = () => {
           <div className="grid md:grid-cols-2 gap-6 mb-16">
             {skills.map((skill, index) => (
               <motion.div
-                key={skill.name}
+                key={skill.id}
                 initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30 }}
                 animate={isInView ? { opacity: 1, x: 0 } : {}}
                 transition={{ duration: 0.5, delay: index * 0.05 }}
@@ -72,7 +89,7 @@ export const SkillsSection = () => {
                     initial={{ width: 0 }}
                     animate={isInView ? { width: `${skill.level}%` } : {}}
                     transition={{ duration: 1, delay: 0.5 + index * 0.05, ease: 'easeOut' }}
-                    className={`h-full rounded-full bg-gradient-to-r ${categoryColors[skill.category]}`}
+                    className={`h-full rounded-full bg-gradient-to-r ${categoryColors[skill.category || 'design']}`}
                   />
                 </div>
               </motion.div>
@@ -80,36 +97,38 @@ export const SkillsSection = () => {
           </div>
 
           {/* Languages */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.6, delay: 0.8 }}
-          >
-            <h3 className="text-2xl font-bold mb-6 text-center">Idiomas</h3>
-            <div className="flex flex-wrap justify-center gap-6">
-              {languages.map((lang) => (
-                <motion.div
-                  key={lang.name}
-                  whileHover={{ scale: 1.05, rotate: 2 }}
-                  className="glass rounded-2xl p-6 min-w-[200px] text-center"
-                >
-                  <span className="text-4xl mb-3 block">{lang.flag}</span>
-                  <h4 className="font-medium mb-2">{lang.name}</h4>
-                  <div className="flex justify-center gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <div
-                        key={i}
-                        className={`w-3 h-3 rounded-full ${i < Math.floor(lang.level / 20)
-                          ? 'bg-gradient-to-r from-primary to-secondary'
-                          : 'bg-muted'
-                          }`}
-                      />
-                    ))}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
+          {languages.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={isInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.6, delay: 0.8 }}
+            >
+              <h3 className="text-2xl font-bold mb-6 text-center">Idiomas</h3>
+              <div className="flex flex-wrap justify-center gap-6">
+                {languages.map((lang) => (
+                  <motion.div
+                    key={lang.id}
+                    whileHover={{ scale: 1.05, rotate: 2 }}
+                    className="glass rounded-2xl p-6 min-w-[200px] text-center"
+                  >
+                    <span className="text-4xl mb-3 block">{lang.flag}</span>
+                    <h4 className="font-medium mb-2">{lang.name}</h4>
+                    <div className="flex justify-center gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-3 h-3 rounded-full ${i < Math.floor((lang.level || 0) / 20)
+                            ? 'bg-gradient-to-r from-primary to-secondary'
+                            : 'bg-muted'
+                            }`}
+                        />
+                      ))}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </div>
       </div>
     </section>
