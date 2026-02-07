@@ -1,68 +1,38 @@
 import { motion, useInView } from 'framer-motion';
-import { useRef, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { ExternalLink, FolderOpen } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
-const works = [
-  {
-    title: 'VTT - Vector Two Technology',
-    image: 'https://static.wixstatic.com/media/3c6fc6_644b6a832756449fa98a2c665cbb4481~mv2.png/v1/fill/w_400,h_400,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/imagem_2022-01-30_142330.png',
-    category: 'Branding',
-    link: '#'
-  },
-  {
-    title: 'Konica Minolta',
-    image: 'https://static.wixstatic.com/media/3c6fc6_7d91a8bcbbd94451a8a56bf7f160ab06~mv2.jpg/v1/fill/w_400,h_400,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/Konica.jpg',
-    category: 'Design Corporativo',
-    link: '#'
-  },
-  {
-    title: "Bob's",
-    image: 'https://static.wixstatic.com/media/3c6fc6_48cf35ff16fa49e2b64834c4bf073eb6~mv2.png/v1/fill/w_400,h_400,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/bobs.png',
-    category: 'Marketing',
-    link: '#'
-  },
-  {
-    title: 'Giraffas',
-    image: 'https://static.wixstatic.com/media/3c6fc6_e6b22cabbc124d6d88249cfdb78b623c~mv2.png/v1/fill/w_400,h_400,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Giraffas.png',
-    category: 'Identidade Visual',
-    link: '#'
-  },
-  {
-    title: 'Modelagem 3D',
-    image: 'https://static.wixstatic.com/media/3c6fc6_a41a995ca1454d1b9a8c02aa6d2a37f9~mv2.jpg/v1/fill/w_400,h_400,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/3.jpg',
-    category: '3D Art',
-    link: '#'
-  },
-  {
-    title: 'Arquitetura 3D',
-    image: 'https://static.wixstatic.com/media/3c6fc6_cc8025a71d5e4f7cbdc3391d79e4ce61~mv2.jpg/v1/fill/w_400,h_400,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/old-house.jpg',
-    category: '3D Visualization',
-    link: '#'
-  },
-  {
-    title: "L'Occitane",
-    image: 'https://static.wixstatic.com/media/3c6fc6_1d5c3790a80d4a32a0dcba14b644e117~mv2.png/v1/fill/w_400,h_400,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Loccitane.png',
-    category: 'Design de Produto',
-    link: '#'
-  },
-  {
-    title: 'Almaany Seguros',
-    image: 'https://static.wixstatic.com/media/3c6fc6_6bfab41a9403428fbddce3feb88ecf6c~mv2.jpg/v1/fill/w_400,h_400,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/Almaany2.jpg',
-    category: 'Branding',
-    link: '#'
-  },
-  {
-    title: '1Up Party',
-    image: 'https://static.wixstatic.com/media/3c6fc6_53d45accc4ac4dd1bcbf3379005058fb~mv2.png/v1/fill/w_400,h_400,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/1Up%20-%20Whats%20Icon.png',
-    category: 'Social Media',
-    link: '#'
-  },
-];
+interface Project {
+  id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  image_urls?: string[];
+  client_name?: string;
+  tags?: string[];
+}
 
 export const WorksSection = () => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      setProjects((data as Project[]) || []);
+      setLoading(false);
+    };
+
+    fetchProjects();
+  }, []);
 
   return (
     <section id="trabalhos" className="py-20 relative overflow-hidden">
@@ -83,56 +53,88 @@ export const WorksSection = () => {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {works.map((work, index) => (
-            <motion.div
-              key={work.title}
-              initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              onMouseEnter={() => setHoveredIndex(index)}
-              onMouseLeave={() => setHoveredIndex(null)}
-              className="group relative"
-            >
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="text-center py-20">
+            <FolderOpen size={48} className="mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground">Nenhum projeto cadastrado ainda.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map((project, index) => (
               <motion.div
-                animate={{
-                  scale: hoveredIndex === index ? 1.02 : 1,
-                  rotateY: hoveredIndex === index ? 5 : 0,
-                  rotateX: hoveredIndex === index ? -5 : 0,
-                }}
-                transition={{ duration: 0.3 }}
-                className="glass rounded-3xl overflow-hidden"
-                style={{ transformStyle: 'preserve-3d' }}
+                key={project.id}
+                initial={{ opacity: 0, y: 30 }}
+                animate={isInView ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+                className="group relative"
               >
-                <div className="aspect-square relative overflow-hidden">
-                  <img
-                    src={work.image}
-                    alt={work.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
+                <motion.div
+                  animate={{
+                    scale: hoveredIndex === index ? 1.02 : 1,
+                    rotateY: hoveredIndex === index ? 5 : 0,
+                    rotateX: hoveredIndex === index ? -5 : 0,
+                  }}
+                  transition={{ duration: 0.3 }}
+                  className="glass rounded-3xl overflow-hidden"
+                  style={{ transformStyle: 'preserve-3d' }}
+                >
+                  <div className="aspect-square relative overflow-hidden">
+                    {project.image_urls?.[0] ? (
+                      <img
+                        src={project.image_urls[0]}
+                        alt={project.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-white/5 to-white/0 flex items-center justify-center">
+                        <FolderOpen size={48} className="text-muted-foreground" />
+                      </div>
+                    )}
 
-                  {/* Overlay */}
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: hoveredIndex === index ? 1 : 0 }}
-                    className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent flex flex-col justify-end p-6"
-                  >
-                    <span className="text-xs font-medium tracking-widest text-primary mb-2">{work.category}</span>
-                    <h3 className="text-xl font-bold mb-3">{work.title}</h3>
-                    <motion.a
-                      href={work.link}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="inline-flex items-center gap-2 text-sm font-medium glass px-4 py-2 rounded-xl w-fit"
+                    {/* Overlay */}
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: hoveredIndex === index ? 1 : 0 }}
+                      className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent flex flex-col justify-end p-6"
                     >
-                      Ver Projeto <ExternalLink size={14} />
-                    </motion.a>
-                  </motion.div>
-                </div>
+                      <span className="text-xs font-medium tracking-widest text-primary mb-2">
+                        {project.category || 'Projeto'}
+                      </span>
+                      <h3 className="text-xl font-bold mb-2">{project.title}</h3>
+                      {project.client_name && (
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Cliente: {project.client_name}
+                        </p>
+                      )}
+                      {project.tags && project.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {project.tags.slice(0, 3).map((tag, i) => (
+                            <span key={i} className="text-xs px-2 py-0.5 bg-white/10 rounded-full">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="inline-flex items-center gap-2 text-sm font-medium glass px-4 py-2 rounded-xl w-fit"
+                      >
+                        Ver Projeto <ExternalLink size={14} />
+                      </motion.button>
+                    </motion.div>
+                  </div>
+                </motion.div>
               </motion.div>
-            </motion.div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

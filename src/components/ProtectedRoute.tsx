@@ -13,8 +13,55 @@ export function ProtectedRoute({ children, adminOnly = false }: ProtectedRoutePr
     const [authorized, setAuthorized] = useState(false);
 
     useEffect(() => {
+        let isMounted = true;
+
         const checkAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+
+                if (!isMounted) return;
+
+                if (!session) {
+                    setAuthorized(false);
+                    setLoading(false);
+                    return;
+                }
+
+                if (adminOnly) {
+                    // Check profile role
+                    const { data: profile } = await supabase
+                        .from("profiles")
+                        .select("role")
+                        .eq("id", session.user.id)
+                        .single();
+
+                    if (isMounted) {
+                        setAuthorized(profile?.role === "admin");
+                    }
+                } else {
+                    if (isMounted) {
+                        setAuthorized(true);
+                    }
+                }
+
+                if (isMounted) {
+                    setLoading(false);
+                }
+            } catch (error) {
+                console.error("Auth check error:", error);
+                if (isMounted) {
+                    setAuthorized(false);
+                    setLoading(false);
+                }
+            }
+        };
+
+        // Initial check
+        checkAuth();
+
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!isMounted) return;
 
             if (!session) {
                 setAuthorized(false);
@@ -22,27 +69,25 @@ export function ProtectedRoute({ children, adminOnly = false }: ProtectedRoutePr
                 return;
             }
 
-            if (adminOnly) {
-                // Check profile role
-                const { data: profile } = await supabase
-                    .from("profiles")
-                    .select("role")
-                    .eq("id", session.user.id)
-                    .single();
+            // Re-check authorization when auth state changes
+            checkAuth();
+        });
 
-                setAuthorized(profile?.role === "admin");
-            } else {
-                setAuthorized(true);
-            }
-
-            setLoading(false);
+        return () => {
+            isMounted = false;
+            subscription.unsubscribe();
         };
-
-        checkAuth();
     }, [adminOnly]);
 
     if (loading) {
-        return <div className="min-h-screen flex items-center justify-center bg-background text-white">Loading Auth...</div>;
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
+                    <span className="text-muted-foreground text-sm">Verificando autenticação...</span>
+                </div>
+            </div>
+        );
     }
 
     if (!authorized) {
