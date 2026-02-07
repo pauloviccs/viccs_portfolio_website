@@ -27,36 +27,53 @@ export const Navigation = () => {
 
     // Check auth and get user role
     const checkAuthAndRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setIsAuthenticated(!!session);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsAuthenticated(!!session);
 
-      if (session?.user) {
-        // Get user role from profiles table
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
+        if (session?.user) {
+          // Get user role from profiles table
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .single();
 
-        setUserRole(profile?.role as 'admin' | 'client' || 'client');
-      } else {
-        setUserRole(null);
+          if (error) {
+            console.error('[Navigation] Profile fetch error:', error);
+            setUserRole('client'); // Default to client on error
+          } else {
+            console.log('[Navigation] User role:', profile?.role);
+            setUserRole(profile?.role === 'admin' ? 'admin' : 'client');
+          }
+        } else {
+          setUserRole(null);
+        }
+      } catch (err) {
+        console.error('[Navigation] Auth check error:', err);
       }
     };
 
     checkAuthAndRole();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Navigation] Auth state changed:', event);
       setIsAuthenticated(!!session);
 
       if (session?.user) {
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', session.user.id)
           .single();
 
-        setUserRole(profile?.role as 'admin' | 'client' || 'client');
+        if (error) {
+          console.error('[Navigation] Profile fetch error:', error);
+          setUserRole('client');
+        } else {
+          console.log('[Navigation] User role:', profile?.role);
+          setUserRole(profile?.role === 'admin' ? 'admin' : 'client');
+        }
       } else {
         setUserRole(null);
       }
@@ -84,8 +101,8 @@ export const Navigation = () => {
         animate={{ y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled
-            ? 'py-3 bg-white/5 backdrop-blur-xl border-b border-white/10 shadow-lg shadow-black/5'
-            : 'py-6'
+          ? 'py-3 bg-white/5 backdrop-blur-xl border-b border-white/10 shadow-lg shadow-black/5'
+          : 'py-6'
           }`}
       >
         <div className="container mx-auto px-6 flex items-center justify-between">
