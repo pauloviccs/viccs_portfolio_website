@@ -747,6 +747,12 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
     const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
     const [uploading, setUploading] = useState(false);
 
+    // Thumbnail state
+    const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+    const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+    const [existingThumbnail, setExistingThumbnail] = useState<string | null>(null);
+    const [removeThumbnail, setRemoveThumbnail] = useState(false);
+
     // Edit-specific state
     const [existingMedia, setExistingMedia] = useState<string[]>([]);
     const [mediaToDelete, setMediaToDelete] = useState<string[]>([]);
@@ -767,6 +773,10 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
         setMediaPreviews([]);
         setExistingMedia([]);
         setMediaToDelete([]);
+        setThumbnailFile(null);
+        setThumbnailPreview(null);
+        setExistingThumbnail(null);
+        setRemoveThumbnail(false);
         setIsCreating(false);
         setEditingProject(null);
     };
@@ -782,6 +792,10 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
         setMediaFiles([]);
         setMediaPreviews([]);
         setMediaToDelete([]);
+        setExistingThumbnail(project.thumbnail_url || null);
+        setThumbnailFile(null);
+        setThumbnailPreview(null);
+        setRemoveThumbnail(false);
     };
 
     const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -852,6 +866,13 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
 
         const uploadedUrls = await uploadMediaFiles(mediaFiles);
 
+        // Upload thumbnail if provided
+        let thumbnailUrl: string | null = null;
+        if (thumbnailFile) {
+            const thumbUrls = await uploadMediaFiles([thumbnailFile]);
+            thumbnailUrl = thumbUrls[0] || null;
+        }
+
         await supabase.from("projects").insert({
             title,
             description,
@@ -859,6 +880,7 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
             client_name: clientName || null,
             tags: tags ? tags.split(",").map(t => t.trim()).filter(Boolean) : [],
             image_urls: uploadedUrls,
+            thumbnail_url: thumbnailUrl,
             completion_date: new Date().toISOString().split('T')[0],
         });
 
@@ -877,11 +899,25 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
             await deleteMediaFromStorage(mediaToDelete);
         }
 
+        // Delete old thumbnail if being removed or replaced
+        if ((removeThumbnail || thumbnailFile) && existingThumbnail) {
+            await deleteMediaFromStorage([existingThumbnail]);
+        }
+
         // Upload new media
         const newUploadedUrls = await uploadMediaFiles(mediaFiles);
 
         // Combine existing (reordered) + new
         const finalUrls = [...existingMedia, ...newUploadedUrls];
+
+        // Handle thumbnail
+        let finalThumbnailUrl: string | null = existingThumbnail;
+        if (thumbnailFile) {
+            const thumbUrls = await uploadMediaFiles([thumbnailFile]);
+            finalThumbnailUrl = thumbUrls[0] || null;
+        } else if (removeThumbnail) {
+            finalThumbnailUrl = null;
+        }
 
         await supabase.from("projects").update({
             title,
@@ -890,6 +926,7 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
             client_name: clientName || null,
             tags: tags ? tags.split(",").map(t => t.trim()).filter(Boolean) : [],
             image_urls: finalUrls,
+            thumbnail_url: finalThumbnailUrl,
         }).eq("id", editingProject.id);
 
         resetForm();
@@ -1008,6 +1045,74 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
                             placeholder="Descreva o conceito por trás do projeto, os desafios, a solução criativa e os resultados..."
                             className="w-full h-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 resize-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 outline-none transition-colors"
                         />
+                    </div>
+
+                    {/* Thumbnail Upload */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2">
+                            Thumbnail do Projeto <span className="text-muted-foreground">(opcional - será usada nos cards)</span>
+                        </label>
+                        <div className="flex items-start gap-6">
+                            {/* Current/Preview Thumbnail */}
+                            <div className="w-40 h-28 relative rounded-xl overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                                {thumbnailPreview ? (
+                                    <>
+                                        <img src={thumbnailPreview} alt="Nova thumbnail" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setThumbnailFile(null);
+                                                setThumbnailPreview(null);
+                                            }}
+                                            className="absolute top-2 right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    </>
+                                ) : existingThumbnail && !removeThumbnail ? (
+                                    <>
+                                        <img src={existingThumbnail} alt="Thumbnail atual" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setRemoveThumbnail(true)}
+                                            className="absolute top-2 right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <span className="text-xs text-muted-foreground text-center px-2">Sem thumbnail</span>
+                                )}
+                            </div>
+
+                            {/* Upload Button */}
+                            <div className="flex-1">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            setThumbnailFile(file);
+                                            setThumbnailPreview(URL.createObjectURL(file));
+                                            setRemoveThumbnail(false);
+                                        }
+                                    }}
+                                    className="hidden"
+                                    id="thumbnail-upload"
+                                />
+                                <label
+                                    htmlFor="thumbnail-upload"
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl cursor-pointer hover:bg-white/10 transition-colors"
+                                >
+                                    <Upload size={16} />
+                                    {existingThumbnail || thumbnailPreview ? "Trocar Thumbnail" : "Adicionar Thumbnail"}
+                                </label>
+                                <p className="text-xs text-muted-foreground mt-2">
+                                    Se não definir, será usada a primeira imagem das mídias do projeto.
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Existing Media (Edit mode only) with DnD */}
