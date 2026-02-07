@@ -10,6 +10,7 @@ interface Project {
   description?: string | null;
   category?: string | null;
   image_urls?: string[] | null;
+  thumbnail_url?: string | null;
   client_name?: string | null;
   tags?: string[] | null;
   completion_date?: string | null;
@@ -113,9 +114,9 @@ export const WorksSection = () => {
                   style={{ transformStyle: 'preserve-3d' }}
                 >
                   <div className="aspect-square relative overflow-hidden">
-                    {project.image_urls?.[0] ? (
+                    {(project.thumbnail_url || project.image_urls?.[0]) ? (
                       <img
-                        src={project.image_urls[0]}
+                        src={project.thumbnail_url || project.image_urls![0]}
                         alt={project.title}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />

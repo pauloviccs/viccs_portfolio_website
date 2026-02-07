@@ -1219,9 +1219,9 @@ function ProjectsSection({ projects, onUpdate }: { projects: Project[]; onUpdate
                     <div key={project.id} className="glass rounded-2xl overflow-hidden group hover:border-accent/30 border border-transparent transition-all">
                         {/* Project Thumbnail */}
                         <div className="aspect-square bg-gradient-to-br from-white/5 to-white/0 relative">
-                            {project.image_urls?.[0] ? (
+                            {(project.thumbnail_url || project.image_urls?.[0]) ? (
                                 <img
-                                    src={project.image_urls[0]}
+                                    src={project.thumbnail_url || project.image_urls![0]}
                                     alt={project.title}
                                     className="w-full h-full object-cover"
                                 />

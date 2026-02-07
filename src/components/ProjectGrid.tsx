@@ -106,8 +106,8 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
         >
             {/* Image Placeholder or Actual Image */}
             <div className="absolute inset-0 bg-neutral-900">
-                {project.image_urls && project.image_urls[0] ? (
-                    <img src={project.image_urls[0]} alt={project.title} className="w-full h-full object-cover transition duration-700 group-hover:scale-110" />
+                {(project.thumbnail_url || (project.image_urls && project.image_urls[0])) ? (
+                    <img src={project.thumbnail_url || project.image_urls![0]} alt={project.title} className="w-full h-full object-cover transition duration-700 group-hover:scale-110" />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-white/20 font-display text-4xl font-bold bg-gradient-to-br from-white/5 to-transparent">
                         VICCS
