@@ -27,11 +27,14 @@ export const Navigation = () => {
 
     // Check auth and get user role
     const checkAuthAndRole = async () => {
+      console.log('[Navigation] checkAuthAndRole called');
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('[Navigation] Session:', session ? 'exists' : 'null');
         setIsAuthenticated(!!session);
 
         if (session?.user) {
+          console.log('[Navigation] Fetching profile for:', session.user.id);
           // Get user role from profiles table
           const { data: profile, error } = await supabase
             .from('profiles')
@@ -43,7 +46,7 @@ export const Navigation = () => {
             console.error('[Navigation] Profile fetch error:', error);
             setUserRole('client'); // Default to client on error
           } else {
-            console.log('[Navigation] User role:', profile?.role);
+            console.log('[Navigation] User role fetched:', profile?.role);
             setUserRole(profile?.role === 'admin' ? 'admin' : 'client');
           }
         } else {
