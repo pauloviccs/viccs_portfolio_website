@@ -8,4 +8,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase Environment Variables')
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: true,
+        storageKey: 'viccs-auth',
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+    }
+})

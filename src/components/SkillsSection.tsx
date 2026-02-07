@@ -21,19 +21,33 @@ export const SkillsSection = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: skillsData } = await supabase
-        .from('skills')
-        .select('*')
-        .order('sort_order');
-      setSkills(skillsData || []);
+      try {
+        const { data: skillsData, error: skillsError } = await supabase
+          .from('skills')
+          .select('*')
+          .order('sort_order');
 
-      const { data: langData } = await supabase
-        .from('languages')
-        .select('*')
-        .order('sort_order');
-      setLanguages(langData || []);
+        if (skillsError) {
+          console.error('Skills fetch error:', skillsError);
+        } else {
+          setSkills((skillsData as Skill[]) || []);
+        }
 
-      setLoading(false);
+        const { data: langData, error: langError } = await supabase
+          .from('languages')
+          .select('*')
+          .order('sort_order');
+
+        if (langError) {
+          console.error('Languages fetch error:', langError);
+        } else {
+          setLanguages((langData as Language[]) || []);
+        }
+      } catch (err) {
+        console.error('Fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
