@@ -27,14 +27,11 @@ export const Navigation = () => {
 
     // Check auth and get user role
     const checkAuthAndRole = async () => {
-      console.log('[Navigation] checkAuthAndRole called');
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('[Navigation] Session:', session ? 'exists' : 'null');
         setIsAuthenticated(!!session);
 
         if (session?.user) {
-          console.log('[Navigation] Fetching profile for:', session.user.id);
           // Get user role from profiles table
           const { data: profile, error } = await supabase
             .from('profiles')
@@ -43,26 +40,22 @@ export const Navigation = () => {
             .single();
 
           if (error) {
-            console.error('[Navigation] Profile fetch error:', error);
             setUserRole('client'); // Default to client on error
           } else {
-            console.log('[Navigation] User role fetched:', profile?.role);
             setUserRole(profile?.role === 'admin' ? 'admin' : 'client');
           }
         } else {
           setUserRole(null);
         }
       } catch (err) {
-        console.error('[Navigation] Auth check error:', err);
+        // Silent fail
       }
     };
 
     checkAuthAndRole();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, _session) => {
-      console.log('[Navigation] Auth state changed:', event);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, _session) => {
       // Re-check auth and role on any auth state change
-      // This ensures we get fresh session data
       checkAuthAndRole();
     });
 
