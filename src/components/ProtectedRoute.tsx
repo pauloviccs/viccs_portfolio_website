@@ -66,7 +66,7 @@ export function ProtectedRoute({ children, adminOnly = false }: ProtectedRoutePr
         checkAuth();
 
         // Listen for auth state changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, _session) => {
             if (!isMounted) return;
 
             // Only re-check on meaningful events
