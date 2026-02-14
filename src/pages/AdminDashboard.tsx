@@ -6,7 +6,7 @@ import type { SiteSettings, Skill, Language, Order, Project, Profile, OrderTag }
 import {
     Plus, Trash2, Edit2, Save, X, Upload,
     Briefcase, Users, FolderOpen, Clock, GripVertical, Play,
-    Send, MessageSquare, Tag, ChevronDown, ChevronUp, Loader2
+    Send, MessageSquare, Tag, ChevronDown, ChevronUp, Loader2, Lock
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -811,6 +811,7 @@ function OrdersSection({ orders, orderTags, onUpdate }: { orders: (Order & { pro
             ) : (
                 orders.map((order) => {
                     const isExpanded = expandedOrder === order.id;
+                    const isLocked = order.status === 'completed' || order.status === 'cancelled';
                     const assignedTagIds = orderTagMap[order.id] || [];
 
                     return (
@@ -847,31 +848,33 @@ function OrdersSection({ orders, orderTags, onUpdate }: { orders: (Order & { pro
                                         );
                                     })}
                                     {/* Add tag button */}
-                                    <div className="relative">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setTagDropdownOrder(tagDropdownOrder === order.id ? null : order.id); }}
-                                            className="px-2 py-0.5 rounded-full text-[10px] border border-dashed border-white/20 text-muted-foreground hover:border-accent hover:text-accent transition-colors"
-                                        >
-                                            + Tag
-                                        </button>
-                                        {tagDropdownOrder === order.id && (
-                                            <div className="absolute top-7 left-0 z-50 bg-background/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 min-w-[160px]" onClick={(e) => e.stopPropagation()}>
-                                                {orderTags.length === 0 ? (
-                                                    <p className="text-xs text-muted-foreground p-2">Crie tags primeiro.</p>
-                                                ) : orderTags.map((tag) => (
-                                                    <button
-                                                        key={tag.id}
-                                                        onClick={() => toggleTagOnOrder(order.id, tag.id)}
-                                                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-sm text-left transition-colors"
-                                                    >
-                                                        <span className="w-3 h-3 rounded-full shrink-0 border" style={{ backgroundColor: assignedTagIds.includes(tag.id) ? tag.color : "transparent", borderColor: tag.color }} />
-                                                        <span style={{ color: tag.color }}>{tag.name}</span>
-                                                        {assignedTagIds.includes(tag.id) && <span className="ml-auto text-xs text-accent">✓</span>}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                    {!isLocked && (
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setTagDropdownOrder(tagDropdownOrder === order.id ? null : order.id); }}
+                                                className="px-2 py-0.5 rounded-full text-[10px] border border-dashed border-white/20 text-muted-foreground hover:border-accent hover:text-accent transition-colors"
+                                            >
+                                                + Tag
+                                            </button>
+                                            {tagDropdownOrder === order.id && (
+                                                <div className="absolute top-7 left-0 z-50 bg-background/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 min-w-[160px]" onClick={(e) => e.stopPropagation()}>
+                                                    {orderTags.length === 0 ? (
+                                                        <p className="text-xs text-muted-foreground p-2">Crie tags primeiro.</p>
+                                                    ) : orderTags.map((tag) => (
+                                                        <button
+                                                            key={tag.id}
+                                                            onClick={() => toggleTagOnOrder(order.id, tag.id)}
+                                                            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-sm text-left transition-colors"
+                                                        >
+                                                            <span className="w-3 h-3 rounded-full shrink-0 border" style={{ backgroundColor: assignedTagIds.includes(tag.id) ? tag.color : "transparent", borderColor: tag.color }} />
+                                                            <span style={{ color: tag.color }}>{tag.name}</span>
+                                                            {assignedTagIds.includes(tag.id) && <span className="ml-auto text-xs text-accent">✓</span>}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 {!isExpanded && (
                                     <p className="text-sm text-muted-foreground line-clamp-2 mt-2">{order.description}</p>
@@ -901,25 +904,32 @@ function OrdersSection({ orders, orderTags, onUpdate }: { orders: (Order & { pro
                                             {/* Status Selector */}
                                             <div>
                                                 <span className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Status</span>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {Object.entries(statusLabels).map(([key, label]) => (
-                                                        <button
-                                                            key={key}
-                                                            onClick={() => updateStatus(order.id, key as "pending" | "approved" | "in_progress" | "completed" | "cancelled")}
-                                                            className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${order.status === key
-                                                                ? statusColors[key]
-                                                                : "border-white/10 text-muted-foreground hover:bg-white/5"
-                                                                }`}
-                                                        >
-                                                            {label}
-                                                        </button>
-                                                    ))}
-                                                </div>
+                                                {isLocked ? (
+                                                    <div className="flex items-center gap-2 p-3 rounded-lg bg-white/5 border border-white/10">
+                                                        <Lock className="w-4 h-4 text-muted-foreground" />
+                                                        <span className="text-sm text-muted-foreground">Pedido encerrado como <strong className={order.status === 'completed' ? 'text-green-400' : 'text-red-400'}>{statusLabels[order.status || 'completed']}</strong></span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {Object.entries(statusLabels).map(([key, label]) => (
+                                                            <button
+                                                                key={key}
+                                                                onClick={() => updateStatus(order.id, key as "pending" | "approved" | "in_progress" | "completed" | "cancelled")}
+                                                                className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${order.status === key
+                                                                    ? statusColors[key]
+                                                                    : "border-white/10 text-muted-foreground hover:bg-white/5"
+                                                                    }`}
+                                                            >
+                                                                {label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                         {/* Right: Chat */}
                                         <div className="flex flex-col h-[400px]">
-                                            <AdminOrderChat orderId={order.id} />
+                                            <AdminOrderChat orderId={order.id} locked={isLocked} />
                                         </div>
                                     </div>
                                 </div>
@@ -933,7 +943,7 @@ function OrdersSection({ orders, orderTags, onUpdate }: { orders: (Order & { pro
 }
 
 // ========== ADMIN ORDER CHAT ==========
-function AdminOrderChat({ orderId }: { orderId: string }) {
+function AdminOrderChat({ orderId, locked = false }: { orderId: string; locked?: boolean }) {
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const [sending, setSending] = useState(false);
@@ -1025,29 +1035,38 @@ function AdminOrderChat({ orderId }: { orderId: string }) {
                 })}
             </div>
             {/* Input */}
-            <div className="p-3 bg-black/10 border-t border-white/5">
-                <form onSubmit={sendMessage} className="flex gap-2">
-                    <input
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Responder cliente..."
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors"
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                sendMessage(e);
-                            }
-                        }}
-                    />
-                    <button
-                        type="submit"
-                        disabled={!newMessage.trim() || sending}
-                        className="p-2 bg-accent text-accent-foreground rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-accent/20"
-                    >
-                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    </button>
-                </form>
-            </div>
+            {locked ? (
+                <div className="p-3 bg-black/10 border-t border-white/5">
+                    <div className="flex items-center justify-center gap-2 p-2 text-muted-foreground text-sm">
+                        <Lock className="w-4 h-4" />
+                        <span>Pedido encerrado — chat bloqueado</span>
+                    </div>
+                </div>
+            ) : (
+                <div className="p-3 bg-black/10 border-t border-white/5">
+                    <form onSubmit={sendMessage} className="flex gap-2">
+                        <input
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Responder cliente..."
+                            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    sendMessage(e);
+                                }
+                            }}
+                        />
+                        <button
+                            type="submit"
+                            disabled={!newMessage.trim() || sending}
+                            className="p-2 bg-accent text-accent-foreground rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-accent/20"
+                        >
+                            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        </button>
+                    </form>
+                </div>
+            )}
         </>
     );
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/supabaseClient';
 import { format } from 'date-fns';
-import { Send, Paperclip, Loader2, ArrowLeft } from 'lucide-react';
+import { Send, Paperclip, Loader2, ArrowLeft, Lock } from 'lucide-react';
 
 interface OrderDetailsProps {
     order: any;
@@ -160,35 +160,44 @@ export function OrderDetails({ order, onClose }: OrderDetailsProps) {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-black/20 border-t border-white/5">
-                <form onSubmit={sendMessage} className="flex gap-2 items-end">
-                    <button type="button" className="p-3 text-muted-foreground hover:bg-white/10 rounded-xl transition-colors">
-                        <Paperclip size={20} />
-                    </button>
-                    <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-accent transition-colors">
-                        <textarea
-                            value={newMessage}
-                            onChange={e => setNewMessage(e.target.value)}
-                            placeholder="Digite sua mensagem..."
-                            className="w-full bg-transparent p-3 outline-none resize-none max-h-[100px] text-sm"
-                            rows={1}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    sendMessage(e);
-                                }
-                            }}
-                        />
+            {(order.status === 'completed' || order.status === 'cancelled') ? (
+                <div className="p-4 bg-black/20 border-t border-white/5">
+                    <div className="flex items-center justify-center gap-2 py-3 text-muted-foreground">
+                        <Lock size={16} />
+                        <span className="text-sm">Pedido encerrado como <strong className={order.status === 'completed' ? 'text-green-400' : 'text-red-400'}>{order.status === 'completed' ? 'Concluído' : 'Cancelado'}</strong></span>
                     </div>
-                    <button
-                        type="submit"
-                        disabled={!newMessage.trim() || sending}
-                        className="p-3 bg-accent text-accent-foreground rounded-xl hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent/20"
-                    >
-                        {sending ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
-                    </button>
-                </form>
-            </div>
+                </div>
+            ) : (
+                <div className="p-4 bg-black/20 border-t border-white/5">
+                    <form onSubmit={sendMessage} className="flex gap-2 items-end">
+                        <button type="button" className="p-3 text-muted-foreground hover:bg-white/10 rounded-xl transition-colors">
+                            <Paperclip size={20} />
+                        </button>
+                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-accent transition-colors">
+                            <textarea
+                                value={newMessage}
+                                onChange={e => setNewMessage(e.target.value)}
+                                placeholder="Digite sua mensagem..."
+                                className="w-full bg-transparent p-3 outline-none resize-none max-h-[100px] text-sm"
+                                rows={1}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        sendMessage(e);
+                                    }
+                                }}
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={!newMessage.trim() || sending}
+                            className="p-3 bg-accent text-accent-foreground rounded-xl hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent/20"
+                        >
+                            {sending ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                        </button>
+                    </form>
+                </div>
+            )}
         </div>
     );
 }
