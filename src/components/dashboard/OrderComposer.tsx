@@ -107,7 +107,7 @@ export function OrderComposer({ onCancel, onSuccess }: OrderComposerProps) {
                     placeholder="Assunto (ex: E-commerce de Sapatos)"
                     value={title}
                     onChange={e => setTitle(e.target.value)}
-                    className="bg-transparent text-xl font-medium placeholder:text-muted-foreground outline-none border-b border-white/10 pb-2 focus:border-accent transition-colors"
+                    className="bg-transparent text-foreground text-xl font-medium placeholder:text-muted-foreground outline-none border-b border-white/10 pb-2 focus:border-accent transition-colors"
                     required
                     autoFocus
                 />
@@ -118,7 +118,7 @@ export function OrderComposer({ onCancel, onSuccess }: OrderComposerProps) {
                         <select
                             value={priority}
                             onChange={e => setPriority(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-sm outline-none focus:border-accent"
+                            className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-sm text-foreground outline-none focus:border-accent [&>option]:bg-[#1a1a2e] [&>option]:text-foreground"
                         >
                             <option value="low">Baixa</option>
                             <option value="normal">Normal</option>
@@ -132,7 +132,7 @@ export function OrderComposer({ onCancel, onSuccess }: OrderComposerProps) {
                             placeholder="(11) 99999-9999"
                             value={whatsapp}
                             onChange={e => setWhatsapp(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-sm outline-none focus:border-accent"
+                            className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-sm text-foreground outline-none focus:border-accent placeholder:text-muted-foreground"
                         />
                     </div>
                 </div>
@@ -141,7 +141,7 @@ export function OrderComposer({ onCancel, onSuccess }: OrderComposerProps) {
                     placeholder="Descreva seu projeto detalhadamente..."
                     value={description}
                     onChange={e => setDescription(e.target.value)}
-                    className="flex-1 bg-transparent resize-none outline-none placeholder:text-muted-foreground min-h-[200px]"
+                    className="flex-1 bg-transparent text-foreground resize-none outline-none placeholder:text-muted-foreground min-h-[200px]"
                     required
                 />
 
