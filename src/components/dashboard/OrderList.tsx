@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/supabaseClient';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion } from 'framer-motion';
@@ -29,6 +31,37 @@ const statusColors: Record<string, string> = {
 };
 
 export function OrderList({ orders, selectedId, onSelect, onNewOrder, loading }: OrderListProps) {
+    const [orderTagMap, setOrderTagMap] = useState<Record<string, { id: string; name: string; color: string }[]>>({});
+
+    useEffect(() => {
+        fetchAllTags();
+
+        const channel = supabase
+            .channel('client-order-tags')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'order_tag_assignments' }, () => {
+                fetchAllTags();
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, []);
+
+    const fetchAllTags = async () => {
+        const { data } = await supabase
+            .from('order_tag_assignments')
+            .select('order_id, order_tags(id, name, color)');
+
+        if (data) {
+            const map: Record<string, { id: string; name: string; color: string }[]> = {};
+            data.forEach((a: any) => {
+                if (!a.order_tags) return;
+                if (!map[a.order_id]) map[a.order_id] = [];
+                map[a.order_id].push(a.order_tags);
+            });
+            setOrderTagMap(map);
+        }
+    };
+
     if (orders.length === 0 && !loading) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-4">
@@ -78,39 +111,47 @@ export function OrderList({ orders, selectedId, onSelect, onNewOrder, loading }:
                     </div>
                 ) : (
                     <div className="flex flex-col">
-                        {orders.map((order, i) => (
-                            <motion.button
-                                key={order.id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.05 }}
-                                onClick={() => onSelect(order)}
-                                className={`p-4 text-left border-b border-white/5 hover:bg-white/5 transition-colors group ${selectedId === order.id ? 'bg-white/5 border-l-2 border-l-accent' : 'border-l-2 border-l-transparent'
-                                    }`}
-                            >
-                                <div className="flex justify-between items-start mb-1">
-                                    <h4 className={`font-medium truncate pr-2 ${selectedId === order.id ? 'text-accent' : 'text-foreground'}`}>
-                                        {order.title}
-                                    </h4>
-                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                        {format(new Date(order.created_at), 'd MMM', { locale: ptBR })}
-                                    </span>
-                                </div>
-                                <p className="text-sm text-muted-foreground line-clamp-2 mb-2 h-10">
-                                    {order.description}
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${statusColors[order.status] || statusColors.default}`}>
-                                        {order.status}
-                                    </span>
-                                    {order.priority !== 'normal' && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded border border-white/10 bg-white/5 text-muted-foreground">
-                                            {order.priority}
+                        {orders.map((order, i) => {
+                            const tags = orderTagMap[order.id] || [];
+                            return (
+                                <motion.button
+                                    key={order.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: i * 0.05 }}
+                                    onClick={() => onSelect(order)}
+                                    className={`p-4 text-left border-b border-white/5 hover:bg-white/5 transition-colors group ${selectedId === order.id ? 'bg-white/5 border-l-2 border-l-accent' : 'border-l-2 border-l-transparent'
+                                        }`}
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <h4 className={`font-medium truncate pr-2 ${selectedId === order.id ? 'text-accent' : 'text-foreground'}`}>
+                                            {order.title}
+                                        </h4>
+                                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                            {format(new Date(order.created_at), 'd MMM', { locale: ptBR })}
                                         </span>
-                                    )}
-                                </div>
-                            </motion.button>
-                        ))}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground line-clamp-2 mb-2 h-10">
+                                        {order.description}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${statusColors[order.status] || statusColors.default}`}>
+                                            {order.status}
+                                        </span>
+                                        {order.priority !== 'normal' && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded border border-white/10 bg-white/5 text-muted-foreground">
+                                                {order.priority}
+                                            </span>
+                                        )}
+                                        {tags.map((tag) => (
+                                            <span key={tag.id} className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border" style={{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }}>
+                                                {tag.name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </motion.button>
+                            );
+                        })}
                     </div>
                 )}
             </div>

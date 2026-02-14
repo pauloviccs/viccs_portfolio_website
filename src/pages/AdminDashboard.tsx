@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { AdminSidebar, type Section } from "../components/dashboard/AdminSidebar";
 import { AdminHeader } from "../components/dashboard/AdminHeader";
-import type { SiteSettings, Skill, Language, Order, Project, Profile } from "../types/supabase";
+import type { SiteSettings, Skill, Language, Order, Project, Profile, OrderTag } from "../types/supabase";
 import {
     Plus, Trash2, Edit2, Save, X, Upload,
-    Briefcase, Users, FolderOpen, Clock, GripVertical, Play
+    Briefcase, Users, FolderOpen, Clock, GripVertical, Play,
+    Send, MessageSquare, Tag, ChevronDown, ChevronUp, Loader2
 } from "lucide-react";
+import { format } from "date-fns";
 import {
     DndContext,
     closestCenter,
@@ -46,6 +48,7 @@ export function AdminDashboard() {
     const [skills, setSkills] = useState<Skill[]>([]);
     const [languages, setLanguages] = useState<Language[]>([]);
 
+    const [orderTags, setOrderTags] = useState<OrderTag[]>([]);
     const [orders, setOrders] = useState<(Order & { profiles: Profile | null })[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [clients, setClients] = useState<Profile[]>([]);
@@ -76,6 +79,9 @@ export function AdminDashboard() {
         setLanguages(langData || []);
 
 
+        // Order Tags
+        const { data: tagsData } = await supabase.from("order_tags").select("*").order("name");
+        setOrderTags(tagsData || []);
 
         // Orders
         const { data: ordersData } = await supabase.from("orders").select("*, profiles(*)").order("created_at", { ascending: false });
@@ -129,7 +135,7 @@ export function AdminDashboard() {
                             )}
 
                             {activeSection === "orders" && (
-                                <OrdersSection orders={orders} onUpdate={fetchAllData} />
+                                <OrdersSection orders={orders} orderTags={orderTags} onUpdate={fetchAllData} />
                             )}
                             {activeSection === "projects" && (
                                 <ProjectsSection projects={projects} onUpdate={fetchAllData} />
@@ -641,51 +647,408 @@ function LanguagesSection({ languages, onUpdate }: { languages: Language[]; onUp
 
 
 // ========== ORDERS SECTION ==========
-function OrdersSection({ orders, onUpdate }: { orders: (Order & { profiles: Profile | null })[]; onUpdate: () => void }) {
+function OrdersSection({ orders, orderTags, onUpdate }: { orders: (Order & { profiles: Profile | null })[]; orderTags: OrderTag[]; onUpdate: () => void }) {
+    const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+    const [showTagManager, setShowTagManager] = useState(false);
+    const [newTagName, setNewTagName] = useState("");
+    const [newTagColor, setNewTagColor] = useState("#6366f1");
+    const [editingTagId, setEditingTagId] = useState<string | null>(null);
+    const [editTagData, setEditTagData] = useState({ name: "", color: "" });
+    const [orderTagMap, setOrderTagMap] = useState<Record<string, string[]>>({});
+    const [tagDropdownOrder, setTagDropdownOrder] = useState<string | null>(null);
+
+    // Fetch tag assignments for all orders
+    useEffect(() => {
+        fetchTagAssignments();
+
+        const channel = supabase
+            .channel('tag-assignments-sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'order_tag_assignments' }, () => {
+                fetchTagAssignments();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'order_tags' }, () => {
+                onUpdate();
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, []);
+
+    const fetchTagAssignments = async () => {
+        const { data } = await supabase.from("order_tag_assignments").select("*");
+        if (data) {
+            const map: Record<string, string[]> = {};
+            data.forEach((a) => {
+                if (!map[a.order_id]) map[a.order_id] = [];
+                map[a.order_id].push(a.tag_id);
+            });
+            setOrderTagMap(map);
+        }
+    };
+
+    // Tag CRUD
+    const handleAddTag = async () => {
+        if (!newTagName.trim()) return;
+        await supabase.from("order_tags").insert({ name: newTagName, color: newTagColor });
+        setNewTagName("");
+        setNewTagColor("#6366f1");
+        onUpdate();
+    };
+
+    const handleDeleteTag = async (id: string) => {
+        await supabase.from("order_tags").delete().eq("id", id);
+        onUpdate();
+    };
+
+    const handleSaveEditTag = async () => {
+        if (!editingTagId) return;
+        await supabase.from("order_tags").update({ name: editTagData.name, color: editTagData.color }).eq("id", editingTagId);
+        setEditingTagId(null);
+        onUpdate();
+    };
+
+    // Tag assignment
+    const toggleTagOnOrder = async (orderId: string, tagId: string) => {
+        const current = orderTagMap[orderId] || [];
+        if (current.includes(tagId)) {
+            await supabase.from("order_tag_assignments").delete().eq("order_id", orderId).eq("tag_id", tagId);
+        } else {
+            await supabase.from("order_tag_assignments").insert({ order_id: orderId, tag_id: tagId });
+        }
+        fetchTagAssignments();
+    };
+
+    // Status
     const updateStatus = async (id: string, status: "pending" | "approved" | "in_progress" | "completed" | "cancelled") => {
         await supabase.from("orders").update({ status }).eq("id", id);
         onUpdate();
     };
 
     const statusColors: Record<string, string> = {
-        pending: "bg-yellow-500/20 text-yellow-500",
-        approved: "bg-blue-500/20 text-blue-500",
-        in_progress: "bg-purple-500/20 text-purple-500",
-        completed: "bg-green-500/20 text-green-500",
-        cancelled: "bg-red-500/20 text-red-500",
+        pending: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30",
+        approved: "bg-blue-500/20 text-blue-500 border-blue-500/30",
+        in_progress: "bg-purple-500/20 text-purple-500 border-purple-500/30",
+        completed: "bg-green-500/20 text-green-500 border-green-500/30",
+        cancelled: "bg-red-500/20 text-red-500 border-red-500/30",
+    };
+
+    const statusLabels: Record<string, string> = {
+        pending: "Pendente",
+        approved: "Aprovado",
+        in_progress: "Em Andamento",
+        completed: "Concluído",
+        cancelled: "Cancelado",
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
+            {/* Tag Manager */}
+            <div className="glass rounded-2xl p-5">
+                <button
+                    onClick={() => setShowTagManager(!showTagManager)}
+                    className="flex items-center gap-2 text-sm font-bold w-full"
+                >
+                    <Tag className="w-4 h-4 text-accent" />
+                    Gerenciar Tags
+                    {showTagManager ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
+                </button>
+                {showTagManager && (
+                    <div className="mt-4 space-y-3">
+                        {/* Add new tag */}
+                        <div className="flex gap-2 items-center">
+                            <input
+                                type="color"
+                                value={newTagColor}
+                                onChange={(e) => setNewTagColor(e.target.value)}
+                                className="w-10 h-10 rounded-lg border-0 cursor-pointer bg-transparent"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Nome da tag..."
+                                value={newTagName}
+                                onChange={(e) => setNewTagName(e.target.value)}
+                                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm"
+                                onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
+                            />
+                            <button onClick={handleAddTag} className="px-4 py-2 bg-accent text-primary rounded-xl font-bold flex items-center gap-2 text-sm">
+                                <Plus className="w-4 h-4" /> Criar
+                            </button>
+                        </div>
+                        {/* Existing tags */}
+                        <div className="flex flex-wrap gap-2">
+                            {orderTags.map((tag) => (
+                                <div key={tag.id} className="group relative">
+                                    {editingTagId === tag.id ? (
+                                        <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1">
+                                            <input type="color" value={editTagData.color} onChange={(e) => setEditTagData({ ...editTagData, color: e.target.value })} className="w-7 h-7 rounded border-0 cursor-pointer bg-transparent" />
+                                            <input type="text" value={editTagData.name} onChange={(e) => setEditTagData({ ...editTagData, name: e.target.value })} className="bg-transparent border-none outline-none text-sm w-24 px-1" autoFocus />
+                                            <button onClick={handleSaveEditTag} className="p-1 text-green-400 hover:bg-green-400/10 rounded"><Save className="w-3 h-3" /></button>
+                                            <button onClick={() => setEditingTagId(null)} className="p-1 text-muted-foreground hover:bg-white/10 rounded"><X className="w-3 h-3" /></button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border" style={{ backgroundColor: tag.color + "20", color: tag.color, borderColor: tag.color + "40" }}>
+                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                                            {tag.name}
+                                            <button onClick={() => { setEditingTagId(tag.id); setEditTagData({ name: tag.name, color: tag.color }); }} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Edit2 className="w-3 h-3" />
+                                            </button>
+                                            <button onClick={() => handleDeleteTag(tag.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400">
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            {orderTags.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma tag criada ainda.</p>}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Orders List */}
             {orders.length === 0 ? (
                 <p className="text-muted-foreground">Nenhum pedido ainda.</p>
             ) : (
-                orders.map((order) => (
-                    <div key={order.id} className="glass rounded-xl p-6">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h3 className="font-bold text-lg">{order.title}</h3>
-                                <p className="text-sm text-muted-foreground">
-                                    Cliente: {order.profiles?.full_name || "Desconhecido"}
-                                </p>
+                orders.map((order) => {
+                    const isExpanded = expandedOrder === order.id;
+                    const assignedTagIds = orderTagMap[order.id] || [];
+
+                    return (
+                        <div key={order.id} className="glass rounded-2xl overflow-hidden transition-all">
+                            {/* Card Header — always visible */}
+                            <div
+                                className="p-5 cursor-pointer hover:bg-white/5 transition-colors"
+                                onClick={() => setExpandedOrder(isExpanded ? null : order.id)}
+                            >
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-bold text-lg truncate">{order.title}</h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            Cliente: {order.profiles?.full_name || "Desconhecido"}
+                                            {order.whatsapp && ` • ${order.whatsapp}`}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 ml-4 shrink-0">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase border ${statusColors[order.status || "pending"]}`}>
+                                            {statusLabels[order.status || "pending"] || order.status}
+                                        </span>
+                                        {isExpanded ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+                                    </div>
+                                </div>
+                                {/* Tags pills */}
+                                <div className="flex flex-wrap gap-1.5 mt-3">
+                                    {assignedTagIds.map((tagId) => {
+                                        const tag = orderTags.find((t) => t.id === tagId);
+                                        if (!tag) return null;
+                                        return (
+                                            <span key={tagId} className="px-2 py-0.5 rounded-full text-[10px] font-bold border" style={{ backgroundColor: tag.color + "20", color: tag.color, borderColor: tag.color + "40" }}>
+                                                {tag.name}
+                                            </span>
+                                        );
+                                    })}
+                                    {/* Add tag button */}
+                                    <div className="relative">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setTagDropdownOrder(tagDropdownOrder === order.id ? null : order.id); }}
+                                            className="px-2 py-0.5 rounded-full text-[10px] border border-dashed border-white/20 text-muted-foreground hover:border-accent hover:text-accent transition-colors"
+                                        >
+                                            + Tag
+                                        </button>
+                                        {tagDropdownOrder === order.id && (
+                                            <div className="absolute top-7 left-0 z-50 bg-background/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 min-w-[160px]" onClick={(e) => e.stopPropagation()}>
+                                                {orderTags.length === 0 ? (
+                                                    <p className="text-xs text-muted-foreground p-2">Crie tags primeiro.</p>
+                                                ) : orderTags.map((tag) => (
+                                                    <button
+                                                        key={tag.id}
+                                                        onClick={() => toggleTagOnOrder(order.id, tag.id)}
+                                                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-sm text-left transition-colors"
+                                                    >
+                                                        <span className="w-3 h-3 rounded-full shrink-0 border" style={{ backgroundColor: assignedTagIds.includes(tag.id) ? tag.color : "transparent", borderColor: tag.color }} />
+                                                        <span style={{ color: tag.color }}>{tag.name}</span>
+                                                        {assignedTagIds.includes(tag.id) && <span className="ml-auto text-xs text-accent">✓</span>}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {!isExpanded && (
+                                    <p className="text-sm text-muted-foreground line-clamp-2 mt-2">{order.description}</p>
+                                )}
                             </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${statusColors[order.status || "pending"]}`}>
-                                {order.status}
-                            </span>
+
+                            {/* Expanded Content */}
+                            {isExpanded && (
+                                <div className="border-t border-white/5">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-white/5">
+                                        {/* Left: Order Info */}
+                                        <div className="p-5 space-y-4">
+                                            <div>
+                                                <h4 className="text-xs font-bold text-muted-foreground uppercase mb-2">Descrição</h4>
+                                                <p className="text-sm whitespace-pre-wrap">{order.description}</p>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <span className="text-xs text-muted-foreground">Prioridade</span>
+                                                    <p className="text-sm font-medium capitalize">{order.priority || "normal"}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-muted-foreground">Data</span>
+                                                    <p className="text-sm font-medium">{order.created_at ? format(new Date(order.created_at), "dd/MM/yyyy") : "—"}</p>
+                                                </div>
+                                            </div>
+                                            {/* Status Selector */}
+                                            <div>
+                                                <span className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Status</span>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {Object.entries(statusLabels).map(([key, label]) => (
+                                                        <button
+                                                            key={key}
+                                                            onClick={() => updateStatus(order.id, key as "pending" | "approved" | "in_progress" | "completed" | "cancelled")}
+                                                            className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${order.status === key
+                                                                ? statusColors[key]
+                                                                : "border-white/10 text-muted-foreground hover:bg-white/5"
+                                                                }`}
+                                                        >
+                                                            {label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* Right: Chat */}
+                                        <div className="flex flex-col h-[400px]">
+                                            <AdminOrderChat orderId={order.id} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <p className="text-sm mb-4">{order.description}</p>
-                        <div className="flex gap-2">
-                            <button onClick={() => updateStatus(order.id, "in_progress")} className="text-xs px-3 py-1 bg-white/5 rounded border border-white/10 hover:bg-white/10">
-                                Em Andamento
-                            </button>
-                            <button onClick={() => updateStatus(order.id, "completed")} className="text-xs px-3 py-1 bg-green-500/10 text-green-500 rounded border border-green-500/20 hover:bg-green-500/20">
-                                Concluído
-                            </button>
-                        </div>
-                    </div>
-                ))
+                    );
+                })
             )}
         </div>
+    );
+}
+
+// ========== ADMIN ORDER CHAT ==========
+function AdminOrderChat({ orderId }: { orderId: string }) {
+    const [messages, setMessages] = useState<any[]>([]);
+    const [newMessage, setNewMessage] = useState("");
+    const [sending, setSending] = useState(false);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        fetchMessages();
+        const channel = supabase
+            .channel(`admin-chat-${orderId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_messages', filter: `order_id=eq.${orderId}` }, (payload) => {
+                setMessages(prev => [...prev, payload.new]);
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [orderId]);
+
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages]);
+
+    const fetchMessages = async () => {
+        const { data } = await supabase
+            .from('order_messages')
+            .select('*')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: true });
+        if (data) setMessages(data);
+    };
+
+    const sendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMessage.trim()) return;
+        setSending(true);
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            await supabase.from('order_messages').insert({
+                order_id: orderId,
+                user_id: user.id,
+                content: newMessage,
+                is_admin: true
+            });
+            setNewMessage('');
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <>
+            {/* Chat Header */}
+            <div className="p-3 border-b border-white/5 flex items-center gap-2 bg-black/10">
+                <MessageSquare className="w-4 h-4 text-accent" />
+                <span className="text-sm font-bold">Chat com Cliente</span>
+                <span className="text-[10px] text-muted-foreground ml-auto">{messages.length} msg</span>
+            </div>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar" ref={scrollRef}>
+                {messages.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-8">Nenhuma mensagem ainda. Comece a conversa!</p>
+                )}
+                {messages.map((msg) => {
+                    const isAdmin = msg.is_admin;
+                    return (
+                        <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${isAdmin
+                                ? 'bg-accent text-accent-foreground rounded-tr-sm'
+                                : 'bg-white/10 text-foreground rounded-tl-sm border border-white/5'
+                                }`}>
+                                <p className="whitespace-pre-wrap">{msg.content}</p>
+                                {msg.attachments && msg.attachments.length > 0 && (
+                                    <div className="mt-1 space-y-0.5">
+                                        {msg.attachments.map((url: string, i: number) => (
+                                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block text-xs underline opacity-80 hover:opacity-100">Anexo {i + 1}</a>
+                                        ))}
+                                    </div>
+                                )}
+                                <span className="text-[9px] opacity-50 block mt-1 text-right">
+                                    {format(new Date(msg.created_at), 'HH:mm')}
+                                </span>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            {/* Input */}
+            <div className="p-3 bg-black/10 border-t border-white/5">
+                <form onSubmit={sendMessage} className="flex gap-2">
+                    <input
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Responder cliente..."
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors"
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                sendMessage(e);
+                            }
+                        }}
+                    />
+                    <button
+                        type="submit"
+                        disabled={!newMessage.trim() || sending}
+                        className="p-2 bg-accent text-accent-foreground rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-accent/20"
+                    >
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </button>
+                </form>
+            </div>
+        </>
     );
 }
 

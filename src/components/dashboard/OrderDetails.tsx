@@ -12,15 +12,20 @@ export function OrderDetails({ order, onClose }: OrderDetailsProps) {
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [sending, setSending] = useState(false);
+    const [orderTags, setOrderTags] = useState<{ id: string; name: string; color: string }[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (order?.id) {
             fetchMessages();
+            fetchOrderTags();
             const channel = supabase
                 .channel(`order-${order.id}`)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_messages', filter: `order_id=eq.${order.id}` }, payload => {
                     setMessages(prev => [...prev, payload.new]);
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'order_tag_assignments', filter: `order_id=eq.${order.id}` }, () => {
+                    fetchOrderTags();
                 })
                 .subscribe();
 
@@ -42,6 +47,20 @@ export function OrderDetails({ order, onClose }: OrderDetailsProps) {
             .order('created_at', { ascending: true });
 
         if (data) setMessages(data);
+    };
+
+    const fetchOrderTags = async () => {
+        const { data } = await supabase
+            .from('order_tag_assignments')
+            .select('tag_id, order_tags(id, name, color)')
+            .eq('order_id', order.id);
+
+        if (data) {
+            const tags = data
+                .map((a: any) => a.order_tags)
+                .filter(Boolean);
+            setOrderTags(tags);
+        }
     };
 
     const sendMessage = async (e: React.FormEvent) => {
@@ -75,15 +94,25 @@ export function OrderDetails({ order, onClose }: OrderDetailsProps) {
                         <ArrowLeft size={20} />
                     </button>
                 )}
-                <div>
+                <div className="flex-1 min-w-0">
                     <h2 className="font-bold text-lg leading-tight">{order.title}</h2>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>ID: #{order.id.slice(0, 8)}</span>
                         <span>•</span>
                         <span>{format(new Date(order.created_at), 'dd MMM yyyy')}</span>
                     </div>
+                    {/* Tag pills */}
+                    {orderTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                            {orderTags.map((tag) => (
+                                <span key={tag.id} className="px-2 py-0.5 rounded-full text-[10px] font-bold border" style={{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }}>
+                                    {tag.name}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
-                <div className="ml-auto">
+                <div className="ml-auto shrink-0">
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-accent/20 text-accent border border-accent/20">
                         {order.status}
                     </span>

@@ -74,6 +74,63 @@ export type Database = {
                     }
                 ]
             }
+            order_tags: {
+                Row: {
+                    id: string
+                    name: string
+                    color: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    color?: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    color?: string
+                    created_at?: string
+                }
+                Relationships: []
+            }
+            order_tag_assignments: {
+                Row: {
+                    id: string
+                    order_id: string
+                    tag_id: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    order_id: string
+                    tag_id: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    order_id?: string
+                    tag_id?: string
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "order_tag_assignments_order_id_fkey"
+                        columns: ["order_id"]
+                        isOneToOne: false
+                        referencedRelation: "orders"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "order_tag_assignments_tag_id_fkey"
+                        columns: ["tag_id"]
+                        isOneToOne: false
+                        referencedRelation: "order_tags"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
             orders: {
                 Row: {
                     budget_range: string | null
@@ -301,3 +358,5 @@ export type Tool = Database["public"]["Tables"]["tools"]["Row"]
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
 export type Order = Database["public"]["Tables"]["orders"]["Row"]
 export type Project = Database["public"]["Tables"]["projects"]["Row"]
+export type OrderTag = Database["public"]["Tables"]["order_tags"]["Row"]
+export type OrderTagAssignment = Database["public"]["Tables"]["order_tag_assignments"]["Row"]
