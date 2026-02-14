@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { AdminSidebar, type Section } from "../components/dashboard/AdminSidebar";
 import { AdminHeader } from "../components/dashboard/AdminHeader";
-import type { SiteSettings, Skill, Language, Tool, Order, Project, Profile } from "../types/supabase";
+import type { SiteSettings, Skill, Language, Order, Project, Profile } from "../types/supabase";
 import {
     Plus, Trash2, Edit2, Save, X, Upload,
     Briefcase, Users, FolderOpen, Clock, GripVertical, Play
@@ -22,6 +22,7 @@ import {
     sortableKeyboardCoordinates,
     useSortable,
     rectSortingStrategy,
+    verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -31,7 +32,7 @@ const sectionTitles: Record<Section, { title: string; subtitle: string }> = {
     profile: { title: "Perfil do Site", subtitle: "Foto, bio e anos de experiência" },
     skills: { title: "Habilidades", subtitle: "Gerenciar skills exibidas no portfolio" },
     languages: { title: "Idiomas", subtitle: "Gerenciar idiomas e níveis" },
-    tools: { title: "Ferramentas", subtitle: "Ferramentas dominadas (contador automático)" },
+
     orders: { title: "Pedidos", subtitle: "Gerenciar pedidos de clientes" },
     projects: { title: "Projetos", subtitle: "Portfólio de trabalhos" },
     clients: { title: "Clientes", subtitle: "Lista de clientes cadastrados" },
@@ -44,13 +45,13 @@ export function AdminDashboard() {
     const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
     const [skills, setSkills] = useState<Skill[]>([]);
     const [languages, setLanguages] = useState<Language[]>([]);
-    const [tools, setTools] = useState<Tool[]>([]);
+
     const [orders, setOrders] = useState<(Order & { profiles: Profile | null })[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [clients, setClients] = useState<Profile[]>([]);
 
     // Counts for overview
-    const [counts, setCounts] = useState({ projects: 0, tools: 0, orders: 0, clients: 0 });
+    const [counts, setCounts] = useState({ projects: 0, orders: 0, clients: 0 });
 
     // Loading
     const [loading, setLoading] = useState(true);
@@ -74,9 +75,7 @@ export function AdminDashboard() {
         const { data: langData } = await supabase.from("languages").select("*").order("sort_order");
         setLanguages(langData || []);
 
-        // Tools
-        const { data: toolsData } = await supabase.from("tools").select("*").order("name");
-        setTools(toolsData || []);
+
 
         // Orders
         const { data: ordersData } = await supabase.from("orders").select("*, profiles(*)").order("created_at", { ascending: false });
@@ -93,7 +92,6 @@ export function AdminDashboard() {
         // Counts
         setCounts({
             projects: projectsData?.length || 0,
-            tools: toolsData?.length || 0,
             orders: ordersData?.length || 0,
             clients: clientsData?.length || 0,
         });
@@ -129,9 +127,7 @@ export function AdminDashboard() {
                             {activeSection === "languages" && (
                                 <LanguagesSection languages={languages} onUpdate={fetchAllData} />
                             )}
-                            {activeSection === "tools" && (
-                                <ToolsSection tools={tools} onUpdate={fetchAllData} />
-                            )}
+
                             {activeSection === "orders" && (
                                 <OrdersSection orders={orders} onUpdate={fetchAllData} />
                             )}
@@ -154,7 +150,7 @@ function OverviewSection({ counts, settings }: { counts: any; settings: SiteSett
     const stats = [
         { label: "Anos de Experiência", value: `${settings?.years_experience || 0}+`, icon: Clock, color: "text-primary" },
         { label: "Projetos Completos", value: `${counts.projects}+`, icon: FolderOpen, color: "text-secondary" },
-        { label: "Ferramentas", value: `${counts.tools}+`, icon: Briefcase, color: "text-accent" },
+        { label: "Pedidos", value: counts.orders, icon: Briefcase, color: "text-accent" },
         { label: "Clientes", value: counts.clients, icon: Users, color: "text-green-400" },
     ];
 
@@ -332,11 +328,113 @@ function ProfileSection({ settings, onUpdate }: { settings: SiteSettings | null;
     );
 }
 
+// ========== SORTABLE SKILL ITEM ==========
+function SortableSkillItem({ skill, editingId, editData, setEditData, onSaveEdit, onCancelEdit, onEdit, onDelete, categoryColors }: {
+    skill: Skill;
+    editingId: string | null;
+    editData: { name: string; level: number; category: string };
+    setEditData: (data: { name: string; level: number; category: string }) => void;
+    onSaveEdit: (id: string) => void;
+    onCancelEdit: () => void;
+    onEdit: (skill: Skill) => void;
+    onDelete: (id: string) => void;
+    categoryColors: Record<string, string>;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: skill.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 10 : undefined,
+    };
+
+    return (
+        <div ref={setNodeRef} style={style} className="glass rounded-xl p-4">
+            {editingId === skill.id ? (
+                <div className="flex flex-wrap gap-4 items-center">
+                    <input
+                        type="text"
+                        value={editData.name}
+                        onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                        className="flex-1 min-w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 focus:border-accent focus:outline-none"
+                    />
+                    <input
+                        type="number"
+                        value={editData.level}
+                        onChange={(e) => setEditData({ ...editData, level: parseInt(e.target.value) || 0 })}
+                        className="w-20 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-center focus:border-accent focus:outline-none"
+                        min={0}
+                        max={100}
+                    />
+                    <select
+                        value={editData.category}
+                        onChange={(e) => setEditData({ ...editData, category: e.target.value })}
+                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 focus:border-accent focus:outline-none"
+                    >
+                        <option value="design">Design</option>
+                        <option value="motion">Motion</option>
+                        <option value="3d">3D</option>
+                        <option value="dev">Dev</option>
+                    </select>
+                    <button onClick={() => onSaveEdit(skill.id)} className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg">
+                        <Save className="w-4 h-4" />
+                    </button>
+                    <button onClick={onCancelEdit} className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            ) : (
+                <div className="flex items-center gap-4">
+                    <div
+                        {...attributes}
+                        {...listeners}
+                        className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                        <GripVertical className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex justify-between mb-2">
+                            <span className="font-medium">{skill.name}</span>
+                            <span className="text-sm text-muted-foreground">{skill.level}%</span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                                className={`h-full rounded-full ${categoryColors[skill.category || "design"]}`}
+                                style={{ width: `${skill.level}%` }}
+                            />
+                        </div>
+                    </div>
+                    <button onClick={() => onEdit(skill)} className="p-2 text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-lg">
+                        <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => onDelete(skill.id)} className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg">
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ========== SKILLS SECTION ==========
 function SkillsSection({ skills, onUpdate }: { skills: Skill[]; onUpdate: () => void }) {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [newSkill, setNewSkill] = useState({ name: "", level: 80, category: "design" });
     const [editData, setEditData] = useState({ name: "", level: 80, category: "design" });
+    const [localSkills, setLocalSkills] = useState<Skill[]>(skills);
+
+    // Sync local state when props change
+    useEffect(() => {
+        setLocalSkills(skills);
+    }, [skills]);
 
     const categoryColors: Record<string, string> = {
         design: "bg-primary",
@@ -345,13 +443,18 @@ function SkillsSection({ skills, onUpdate }: { skills: Skill[]; onUpdate: () => 
         dev: "bg-gradient-to-r from-primary to-accent",
     };
 
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
     const handleAdd = async () => {
         if (!newSkill.name.trim()) return;
         await supabase.from("skills").insert({
             name: newSkill.name,
             level: newSkill.level,
             category: newSkill.category,
-            sort_order: skills.length,
+            sort_order: localSkills.length,
         });
         setNewSkill({ name: "", level: 80, category: "design" });
         onUpdate();
@@ -370,6 +473,23 @@ function SkillsSection({ skills, onUpdate }: { skills: Skill[]; onUpdate: () => 
     const handleSaveEdit = async (id: string) => {
         await supabase.from("skills").update(editData).eq("id", id);
         setEditingId(null);
+        onUpdate();
+    };
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = localSkills.findIndex((s) => s.id === active.id);
+        const newIndex = localSkills.findIndex((s) => s.id === over.id);
+        const reordered = arrayMove(localSkills, oldIndex, newIndex);
+        setLocalSkills(reordered);
+
+        // Batch update sort_order in Supabase
+        const updates = reordered.map((skill, index) =>
+            supabase.from("skills").update({ sort_order: index }).eq("id", skill.id)
+        );
+        await Promise.all(updates);
         onUpdate();
     };
 
@@ -411,68 +531,27 @@ function SkillsSection({ skills, onUpdate }: { skills: Skill[]; onUpdate: () => 
                 </div>
             </div>
 
-            {/* Skills List */}
-            <div className="grid gap-4">
-                {skills.map((skill) => (
-                    <div key={skill.id} className="glass rounded-xl p-4">
-                        {editingId === skill.id ? (
-                            <div className="flex flex-wrap gap-4 items-center">
-                                <input
-                                    type="text"
-                                    value={editData.name}
-                                    onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                                    className="flex-1 min-w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 focus:border-accent focus:outline-none"
-                                />
-                                <input
-                                    type="number"
-                                    value={editData.level}
-                                    onChange={(e) => setEditData({ ...editData, level: parseInt(e.target.value) || 0 })}
-                                    className="w-20 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-center focus:border-accent focus:outline-none"
-                                    min={0}
-                                    max={100}
-                                />
-                                <select
-                                    value={editData.category}
-                                    onChange={(e) => setEditData({ ...editData, category: e.target.value })}
-                                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 focus:border-accent focus:outline-none"
-                                >
-                                    <option value="design">Design</option>
-                                    <option value="motion">Motion</option>
-                                    <option value="3d">3D</option>
-                                    <option value="dev">Dev</option>
-                                </select>
-                                <button onClick={() => handleSaveEdit(skill.id)} className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg">
-                                    <Save className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => setEditingId(null)} className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg">
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-4">
-                                <div className="flex-1">
-                                    <div className="flex justify-between mb-2">
-                                        <span className="font-medium">{skill.name}</span>
-                                        <span className="text-sm text-muted-foreground">{skill.level}%</span>
-                                    </div>
-                                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                                        <div
-                                            className={`h-full rounded-full ${categoryColors[skill.category || "design"]}`}
-                                            style={{ width: `${skill.level}%` }}
-                                        />
-                                    </div>
-                                </div>
-                                <button onClick={() => handleEdit(skill)} className="p-2 text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-lg">
-                                    <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => handleDelete(skill.id)} className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg">
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                            </div>
-                        )}
+            {/* Skills List with Drag and Drop */}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={localSkills.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                    <div className="grid gap-4">
+                        {localSkills.map((skill) => (
+                            <SortableSkillItem
+                                key={skill.id}
+                                skill={skill}
+                                editingId={editingId}
+                                editData={editData}
+                                setEditData={setEditData}
+                                onSaveEdit={handleSaveEdit}
+                                onCancelEdit={() => setEditingId(null)}
+                                onEdit={handleEdit}
+                                onDelete={handleDelete}
+                                categoryColors={categoryColors}
+                            />
+                        ))}
                     </div>
-                ))}
-            </div>
+                </SortableContext>
+            </DndContext>
         </div>
     );
 }
@@ -559,57 +638,7 @@ function LanguagesSection({ languages, onUpdate }: { languages: Language[]; onUp
     );
 }
 
-// ========== TOOLS SECTION ==========
-function ToolsSection({ tools, onUpdate }: { tools: Tool[]; onUpdate: () => void }) {
-    const [newTool, setNewTool] = useState("");
 
-    const handleAdd = async () => {
-        if (!newTool.trim()) return;
-        await supabase.from("tools").insert({ name: newTool });
-        setNewTool("");
-        onUpdate();
-    };
-
-    const handleDelete = async (id: string) => {
-        await supabase.from("tools").delete().eq("id", id);
-        onUpdate();
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="glass rounded-2xl p-6">
-                <h3 className="text-lg font-bold mb-4">Adicionar Ferramenta</h3>
-                <div className="flex gap-4">
-                    <input
-                        type="text"
-                        placeholder="Nome da ferramenta"
-                        value={newTool}
-                        onChange={(e) => setNewTool(e.target.value)}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2"
-                    />
-                    <button onClick={handleAdd} className="px-4 py-2 bg-accent text-primary rounded-xl font-bold flex items-center gap-2">
-                        <Plus className="w-4 h-4" /> Adicionar
-                    </button>
-                </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-                {tools.map((tool) => (
-                    <div key={tool.id} className="glass rounded-full px-4 py-2 flex items-center gap-2 group">
-                        <span className="text-sm">{tool.name}</span>
-                        <button onClick={() => handleDelete(tool.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400">
-                            <X className="w-3 h-3" />
-                        </button>
-                    </div>
-                ))}
-            </div>
-
-            <p className="text-sm text-muted-foreground">
-                Total: <strong>{tools.length}</strong> ferramentas (exibido automaticamente no portfolio)
-            </p>
-        </div>
-    );
-}
 
 // ========== ORDERS SECTION ==========
 function OrdersSection({ orders, onUpdate }: { orders: (Order & { profiles: Profile | null })[]; onUpdate: () => void }) {
